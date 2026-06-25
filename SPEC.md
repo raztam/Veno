@@ -1,6 +1,6 @@
-# Voice Notes — Showcase App Spec (Local Vault + Ollama/Gemma Edition)
+# Voice Notes — Showcase App Spec (Local Vault + OpenAI Edition)
 
-A premium, local-first AI voice-notes app. Records audio, transcribes it, runs an LLM pass for summary + task extraction using a self-hosted **Ollama** instance running **Google Gemma**, gates power features behind a local paywall, and reports errors. All user data (notes, audio, tasks) lives 100% locally on the device sandbox. Entry is gated via biometrics (Face ID/Touch ID or device pattern).
+A premium, local-first AI voice-notes app. Records audio, transcribes it, runs an LLM pass for summary + task extraction using **OpenAI** via the Vercel AI SDK, gates power features behind a local paywall, and reports errors. All user data (notes, audio, tasks) lives 100% locally on the device sandbox. Entry is gated via biometrics (Face ID/Touch ID or device pattern).
 
 The only server-side code is a thin set of stateless Expo Router API routes that proxy AI provider calls so internal endpoints and secret keys never ship in the JS bundle.
 
@@ -15,7 +15,7 @@ The only server-side code is a thin set of stateless Expo Router API routes that
 - **Biometric Unlock:** Launching the app triggers an immediate Face ID, Touch ID, or Device PIN/Pattern verification check via `expo-local-authentication`.
 - **Record:** Tap record → speak → tap stop. Audio is captured natively via `expo-audio`.
 - **Transcribe:** App uploads the audio to a private API route, which proxies the payload to ElevenLabs Scribe.
-- **Analyze:** App runs an LLM pass through an internal API route calling **Ollama (Gemma)** to produce a title, a 3-bullet summary, a tasks checklist, and contextual tags.
+- **Analyze:** App runs an LLM pass through an internal API route calling **OpenAI** to produce a title, a 3-bullet summary, a tasks checklist, and contextual tags.
 - **Save:** Note data is saved locally to SQLite via Drizzle ORM and listed on the home screen.
 - **Premium Gating:** **Free tier:** 3 minutes/day, 1 summary/day. **Pro (RevenueCat):** unlimited minutes, smart summaries, export to Markdown / share sheet.
 - **Telemetry:** Errors and slow transcriptions are reported to Sentry with anonymized session contexts.
@@ -36,7 +36,7 @@ Cloud syncing, multi-device management, user account registration, collaboration
 | **Audio recording** | `expo-audio`                                               | High-fidelity recording layer replacing deprecated `expo-av`.                                                   |
 | **Server Proxy**    | Expo Router API routes + EAS Hosting                       | Stateless `+api.ts` handlers that safely proxy AI provider calls. No DB. Same repo, same deploy.                |
 | **Transcription**   | ElevenLabs Scribe (`/v1/speech-to-text`)                   | Proxied through `/api/transcribe`.                                                                              |
-| **LLM Engine**      | **Ollama via Vercel AI SDK** (`ai` + `ollama-ai-provider`) | Runs server-side in `/api/summarize+api.ts`. Executes `generateObject` against a Zod schema using **`gemma2`**. |
+| **LLM Engine**      | **OpenAI via Vercel AI SDK** (`ai` + `@ai-sdk/openai`)     | Runs server-side in `/api/summarize+api.ts`. Executes `generateObject` against a Zod schema using **`gpt-4o-mini`**. |
 | **Local DB**        | `expo-sqlite` + Drizzle ORM                                | Typed relational local queries and migration execution.                                                         |
 | **Object storage**  | `expo-file-system`                                         | Audio blobs saved securely inside the application sandbox.                                                      |
 | **Paywall**         | RevenueCat (`react-native-purchases`)                      | Sandbox entitlement validation checked against device identifier.                                               |
@@ -57,11 +57,11 @@ All keys live in a top-level, gitignored `.env` file.
 | `EXPO_PUBLIC_API_BASE_URL`                        | Client → API routes       | Client (Points at EAS Hosting URL)                             |
 | `EXPO_PUBLIC_APP_API_KEY`                         | Client → API routes       | Client (Static header key proving request originated from app) |
 | `API_GATEWAY_KEY`                                 | Proxy Authentication      | Server only (Must match client's `EXPO_PUBLIC_APP_API_KEY`)    |
-| **`OLLAMA_BASE_URL`**                             | Ollama Provider (Stage 6) | Server only (`/api/summarize` — e.g., your secure host VPS)    |
+| **`OPENAI_API_KEY`**                              | OpenAI Provider (Stage 6) | Server only (`/api/summarize`)                                 |
 | `ELEVENLABS_API_KEY`                              | ElevenLabs (Stage 5)      | Server only (`/api/transcribe`)                                |
 | `SENTRY_AUTH_TOKEN`                               | Source-map upload         | Build-time only                                                |
 
-> **API Gateway Security:** Because we do not use cloud auth tokens, incoming API proxy traffic is protected via a static header matching check (`EXPO_PUBLIC_APP_API_KEY` vs `API_GATEWAY_KEY`) to prevent unauthorized internet scanners from burning your private Ollama or ElevenLabs compute.
+> **API Gateway Security:** Because we do not use cloud auth tokens, incoming API proxy traffic is protected via a static header matching check (`EXPO_PUBLIC_APP_API_KEY` vs `API_GATEWAY_KEY`) to prevent unauthorized internet scanners from burning your OpenAI or ElevenLabs compute.
 
 ---
 
@@ -82,7 +82,7 @@ src/
       _utils/
         auth.ts              # validates incoming request using API_GATEWAY_KEY
       transcribe+api.ts      # POST audio → ElevenLabs Scribe
-      summarize+api.ts       # POST transcript → Ollama (Gemma) via AI SDK
+      summarize+api.ts       # POST transcript → OpenAI via AI SDK
     _layout.tsx              # Local Providers, Sentry Init, React Query Client
   components/
     ui/                      # buttons, cards, sheets
@@ -118,7 +118,7 @@ export const notes = pgTable('notes', {
   durationMs: integer('duration_ms').notNull(),
   audioUri: text('audio_uri').notNull(),      // file:// sandboxed URI
   transcript: text('transcript').notNull(),   // Raw text from ElevenLabs
-  summary: text('summary'),                  // Markdown response text from Gemma
+  summary: text('summary'),                  // Markdown response text from OpenAI
   tags: text('tags'),                        // Serialized string array JSON
   status: text('status').$type<'recorded' | 'transcribing' | 'summarizing' | 'ready' | 'error'>().notNull(),
 });
@@ -137,7 +137,7 @@ Each stage represents a standalone shippable, executable target unit.
 Stage 0 — Baseline & house-keeping
 •	Clean out template pages, remove global.css for clean built-in StyleSheet.create layouts.
 •	Add src/constants/theme.ts exposing light/dark color primitives, typographic scales, and spacing constants.
-•	Install: zustand, @tanstack/react-query, drizzle-orm, expo-sqlite, zod, ai, ollama-ai-provider.
+•	Install: zustand, @tanstack/react-query, drizzle-orm, expo-sqlite, zod, ai, @ai-sdk/openai.
 •	Set up web.output: "server" or experimental server properties inside app.config.ts.
 •	Create a stub check path: app/api/health+api.ts yielding { ok: true }.
 •	Commit .env.example. Ensure local .env setups are explicitly safely caught within .gitignore.
@@ -173,11 +173,9 @@ export const NoteSummarySchema = z.object({
 });
 
 •	Server Handlers (app/api/summarize+api.ts):
-import { createOllama } from 'ollama-ai-provider';
+import { openai } from '@ai-sdk/openai';
 import { generateObject } from 'ai';
 import { NoteSummarySchema } from '../../features/summarize/schema';
-
-const ollama = createOllama({ baseURL: process.env.OLLAMA_BASE_URL });
 
 export async function POST(request: Request) {
   // 1. Verify authorization using API_GATEWAY_KEY header check
@@ -185,7 +183,7 @@ export async function POST(request: Request) {
   const { transcript } = await request.json();
 
   const { object } = await generateObject({
-    model: ollama('gemma2'), // Recommended: gemma2:9b parameter size
+    model: openai('gpt-4o-mini'),
     schema: NoteSummarySchema,
     system: "You are a precise analyzer. Your output must strictly adhere to the structured JSON schema provided.",
     prompt: `Analyze the following transcript text. Generate a clear title, a list of summary points containing exactly 3 bullets total, actionable checklist items, and helpful categorized tags: ${transcript}`
@@ -206,7 +204,7 @@ Stage 9 — Polish, export, share
 •	Render beautiful note interfaces: titles, structural checkboxes mapping directly to state adjustments, and markdown block components.
 •	Build Markdown compilation routines allowing text exports out to local files or native OS sharing utilities.
 6. Open questions to resolve before Stage 2
-	1.	Ollama Deployment Location: Where will the Ollama engine run during internal development tasks (e.g., local server exposed via an encrypted Ngrok tunnel) vs production staging tasks (e.g., private GPU VPS)?
-	2.	Gemma Parameter Tuning: Does your target host run gemma2 at the standard 9B weight setup smoothly, or do you need to downgrade to the lighter 2B iteration variant to speed up JSON compilation timelines?
+	1.	OpenAI Model Selection: Use `gpt-4o-mini` for cost-efficient structured output, or step up to `gpt-4o` for higher-quality summaries on longer transcripts?
+	2.	Rate Limits & Cost Caps: Should the server proxy enforce per-device or global daily token/cost limits beyond the client-side free-tier counters?
 	3.	Local Storage Limit Safeguards: Should the application implement a maximum size cap for locally saved raw audio files to stop sandbox allocation overflows?
 ```

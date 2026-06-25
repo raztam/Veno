@@ -15,6 +15,7 @@
     "expo-glass-effect": "~56.0.4",
     "expo-image": "~56.0.11",
     "expo-linking": "~56.0.14",
+    "expo-local-authentication": "~56.0.4",
     "expo-router": "~56.2.11",
     "expo-splash-screen": "~56.0.10",
     "expo-sqlite": "~56.0.5",
@@ -43,9 +44,13 @@
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
+    "build:android:apk": "cd android && ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a && cp app/build/outputs/apk/release/app-release.apk ../builds/veno-release.apk",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "build": "npm run build:android:apk",
+    "build:android": "npm run build:android:apk",
+    "install:android": "adb install -r builds/veno-release.apk"
   },
   "private": true,
   "packageManager": "yarn@4.13.0+sha512.5c20ba010c99815433e5c8453112165e673f1c7948d8d2b267f4b5e52097538658388ebc9f9580656d9b75c5cc996f990f611f99304a2197d4c56d21eea370e7"

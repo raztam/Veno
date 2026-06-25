@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
 
 import { Colors } from '@/constants/theme';
+import { SecurityProvider } from '@/features/security/security-provider';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -36,11 +37,15 @@ export default function RootLayout() {
         };
 
   return (
-    <ThemeProvider value={navigationTheme}>
-      <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-      </Stack>
-    </ThemeProvider>
+    <SecurityProvider>
+      <ThemeProvider value={navigationTheme}>
+        <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="(lock)" options={{ animation: 'fade' }} />
+          <Stack.Screen name="(app)" />
+        </Stack>
+      </ThemeProvider>
+    </SecurityProvider>
   );
 }

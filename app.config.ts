@@ -39,6 +39,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     'expo-sqlite',
+    [
+      'expo-local-authentication',
+      {
+        faceIDPermission: 'Allow Veno to use Face ID to protect your notes.',
+      },
+    ],
   ],
   experiments: {
     typedRoutes: true,
