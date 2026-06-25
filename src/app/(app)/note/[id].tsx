@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { confirmDeleteNote } from '@/features/notes/confirm-delete-note';
 import { useDeleteNote, useNote } from '@/features/notes/use-notes';
 
 export default function NoteDetailScreen() {
@@ -15,10 +16,12 @@ export default function NoteDetailScreen() {
   const { data: note, isLoading } = useNote(id);
   const deleteNote = useDeleteNote();
 
-  const handleDelete = async () => {
-    if (!id) return;
-    await deleteNote.mutateAsync(id);
-    router.back();
+  const handleDelete = () => {
+    if (!note || !id) return;
+    confirmDeleteNote(note, async () => {
+      await deleteNote.mutateAsync(id);
+      router.back();
+    });
   };
 
   return (

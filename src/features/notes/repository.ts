@@ -1,10 +1,11 @@
 import { desc, eq } from 'drizzle-orm';
+import * as Crypto from 'expo-crypto';
 
 import { db } from '@/db/client';
 import { notes, type NewNote, type Note } from '@/db/schema';
 
 export function createNoteId(): string {
-  return crypto.randomUUID();
+  return Crypto.randomUUID();
 }
 
 export function createTestNoteInput(): NewNote {

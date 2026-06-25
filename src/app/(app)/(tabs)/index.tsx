@@ -1,21 +1,36 @@
 import { useRouter } from 'expo-router';
+import { useRef } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native';
+import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { NoteCard } from '@/components/notes/note-card';
+import { SwipeableNoteCard } from '@/components/notes/swipeable-note-card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import type { Note } from '@/db/schema';
-import { useNotes } from '@/features/notes/use-notes';
+import { useDeleteNote, useNotes } from '@/features/notes/use-notes';
 
 export default function NotesScreen() {
   const router = useRouter();
   const { data: notes, isLoading } = useNotes();
+  const deleteNote = useDeleteNote();
+  const openSwipeableRef = useRef<SwipeableMethods | null>(null);
 
   const handleNotePress = (note: Note) => {
     router.push(`/(app)/note/${note.id}`);
+  };
+
+  const handleDelete = (note: Note) => {
+    deleteNote.mutate(note.id);
+  };
+
+  const handleSwipeableOpen = (swipeable: SwipeableMethods) => {
+    if (openSwipeableRef.current && openSwipeableRef.current !== swipeable) {
+      openSwipeableRef.current.close();
+    }
+    openSwipeableRef.current = swipeable;
   };
 
   return (
@@ -35,7 +50,12 @@ export default function NotesScreen() {
             data={notes}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
-              <NoteCard note={item} onPress={() => handleNotePress(item)} />
+              <SwipeableNoteCard
+                note={item}
+                onDelete={() => handleDelete(item)}
+                onPress={() => handleNotePress(item)}
+                onSwipeableOpen={handleSwipeableOpen}
+              />
             )}
             showsVerticalScrollIndicator={false}
           />
