@@ -9,6 +9,7 @@
     "ai": "^6.0.209",
     "drizzle-orm": "^0.45.2",
     "expo": "~56.0.12",
+    "expo-build-properties": "~56.0.19",
     "expo-constants": "~56.0.18",
     "expo-dev-client": "~56.0.20",
     "expo-device": "~56.0.4",
@@ -38,6 +39,8 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "babel-plugin-inline-import": "^3.0.0",
+    "drizzle-kit": "^0.31.10",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -46,8 +49,12 @@
     "android": "expo run:android",
     "build:android:apk": "cd android && ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a && cp app/build/outputs/apk/release/app-release.apk ../builds/veno-release.apk",
     "ios": "expo run:ios",
+    "run:ios": "expo run:ios",
+    "build:ios:simulator": "mkdir -p builds && expo run:ios --device generic --output ./builds --no-bundler",
+    "build:ios": "npm run build:ios:simulator",
     "web": "expo start --web",
     "lint": "expo lint",
+    "db:generate": "drizzle-kit generate",
     "build": "npm run build:android:apk",
     "build:android": "npm run build:android:apk",
     "install:android": "adb install -r builds/veno-release.apk"

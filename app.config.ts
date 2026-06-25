@@ -10,6 +10,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   scheme: 'veno',
   userInterfaceStyle: 'automatic',
   ios: {
+    bundleIdentifier: 'com.raztamim.veno',
     icon: './assets/expo.icon',
   },
   android: {
@@ -28,6 +29,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     'expo-router',
+    [
+      'expo-build-properties',
+      {
+        buildReactNativeFromSource: true,
+      },
+    ],
     [
       'expo-splash-screen',
       {

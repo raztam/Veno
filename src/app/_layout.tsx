@@ -5,6 +5,8 @@ import { useColorScheme } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import { SecurityProvider } from '@/features/security/security-provider';
+import { DatabaseProvider } from '@/providers/database-provider';
+import { QueryProvider } from '@/providers/query-provider';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -37,15 +39,19 @@ export default function RootLayout() {
         };
 
   return (
-    <SecurityProvider>
-      <ThemeProvider value={navigationTheme}>
-        <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(lock)" options={{ animation: 'fade' }} />
-          <Stack.Screen name="(app)" />
-        </Stack>
-      </ThemeProvider>
-    </SecurityProvider>
+    <QueryProvider>
+      <DatabaseProvider>
+        <SecurityProvider>
+          <ThemeProvider value={navigationTheme}>
+            <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="(lock)" options={{ animation: 'fade' }} />
+              <Stack.Screen name="(app)" />
+            </Stack>
+          </ThemeProvider>
+        </SecurityProvider>
+      </DatabaseProvider>
+    </QueryProvider>
   );
 }

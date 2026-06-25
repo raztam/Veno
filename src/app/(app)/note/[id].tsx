@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { StyleSheet } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
@@ -7,10 +7,19 @@ import { Card } from '@/components/ui/card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { useDeleteNote, useNote } from '@/features/notes/use-notes';
 
 export default function NoteDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { data: note, isLoading } = useNote(id);
+  const deleteNote = useDeleteNote();
+
+  const handleDelete = async () => {
+    if (!id) return;
+    await deleteNote.mutateAsync(id);
+    router.back();
+  };
 
   return (
     <ThemedView style={styles.container}>
@@ -18,13 +27,37 @@ export default function NoteDetailScreen() {
         <ThemedText style={styles.header} type="title">
           Note
         </ThemedText>
-        <Card>
-          <ThemedText type="subtitle">Coming soon</ThemedText>
-          <ThemedText style={styles.body} themeColor="textSecondary">
-            Note detail view for &ldquo;{id}&rdquo; will be built in later stages.
-          </ThemedText>
-          <Button label="Back to Notes" onPress={() => router.back()} variant="secondary" />
-        </Card>
+
+        {isLoading ? (
+          <View style={styles.loading}>
+            <ActivityIndicator />
+          </View>
+        ) : note ? (
+          <Card style={styles.card}>
+            <ThemedText type="subtitle">{note.title}</ThemedText>
+            <ThemedText themeColor="textSecondary" type="small">
+              Status: {note.status}
+            </ThemedText>
+            <ThemedText style={styles.body}>{note.transcript}</ThemedText>
+            <View style={styles.actions}>
+              <Button label="Back to Notes" onPress={() => router.back()} variant="secondary" />
+              <Button
+                label="Delete Note"
+                loading={deleteNote.isPending}
+                onPress={handleDelete}
+                variant="destructive"
+              />
+            </View>
+          </Card>
+        ) : (
+          <Card>
+            <ThemedText type="subtitle">Note not found</ThemedText>
+            <ThemedText style={styles.body} themeColor="textSecondary">
+              This note may have been deleted.
+            </ThemedText>
+            <Button label="Back to Notes" onPress={() => router.back()} variant="secondary" />
+          </Card>
+        )}
       </SafeAreaView>
     </ThemedView>
   );
@@ -45,7 +78,18 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
     paddingBottom: Spacing.lg,
   },
+  loading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  card: {
+    gap: Spacing.sm,
+  },
   body: {
     marginVertical: Spacing.md,
+  },
+  actions: {
+    gap: Spacing.sm,
   },
 });

@@ -1,3 +1,4 @@
+import * as Device from 'expo-device';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { Platform } from 'react-native';
 
@@ -14,6 +15,11 @@ export type AuthResult =
 
 export async function authenticateUser(): Promise<AuthResult> {
   if (Platform.OS === 'web') {
+    return { success: true };
+  }
+
+  // Simulators often have no passcode / Face ID settings — skip in dev only.
+  if (__DEV__ && !Device.isDevice) {
     return { success: true };
   }
 

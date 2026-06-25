@@ -1,12 +1,18 @@
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { createTestNoteInput } from '@/features/notes/repository';
+import { useCreateNote, useNotes } from '@/features/notes/use-notes';
 
 export default function SettingsScreen() {
+  const { data: notes } = useNotes();
+  const createNote = useCreateNote();
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView edges={['top']} style={styles.safeArea}>
@@ -17,8 +23,23 @@ export default function SettingsScreen() {
         <Card style={styles.section}>
           <ThemedText type="subtitle">Vault</ThemedText>
           <ThemedText themeColor="textSecondary">
-            Your notes and recordings stay on this device. Biometric lock arrives in Stage 2.
+            Your notes and recordings stay on this device, protected by biometric lock.
           </ThemedText>
+        </Card>
+
+        <Card style={styles.section}>
+          <ThemedText type="subtitle">Developer</ThemedText>
+          <ThemedText themeColor="textSecondary">
+            {notes?.length ?? 0} note{notes?.length === 1 ? '' : 's'} stored locally.
+          </ThemedText>
+          <View style={styles.actions}>
+            <Button
+              label="Add Test Note"
+              loading={createNote.isPending}
+              onPress={() => createNote.mutate(createTestNoteInput())}
+              variant="secondary"
+            />
+          </View>
         </Card>
 
         <Card style={styles.section}>
@@ -58,5 +79,8 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: Spacing.sm,
+  },
+  actions: {
+    marginTop: Spacing.xs,
   },
 });
