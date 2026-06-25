@@ -26,6 +26,32 @@ export function createTestNoteInput(): NewNote {
   };
 }
 
+export function createRecordedNoteInput(
+  id: string,
+  audioUri: string,
+  durationMs: number,
+): NewNote {
+  const now = Date.now();
+
+  return {
+    id,
+    title: `Recording ${new Date(now).toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })}`,
+    createdAt: now,
+    updatedAt: now,
+    durationMs,
+    audioUri,
+    transcript: '',
+    summary: null,
+    tags: null,
+    status: 'recorded',
+  };
+}
+
 export async function listNotes(): Promise<Note[]> {
   return db.select().from(notes).orderBy(desc(notes.createdAt));
 }

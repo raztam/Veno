@@ -47,6 +47,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
     'expo-sqlite',
     [
+      'expo-audio',
+      {
+        microphonePermission: 'Allow Veno to access your microphone to record voice notes.',
+      },
+    ],
+    [
       'expo-local-authentication',
       {
         faceIDPermission: 'Allow Veno to use Face ID to protect your notes.',

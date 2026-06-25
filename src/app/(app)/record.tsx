@@ -1,37 +1,93 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
+import { RecordingCard } from '@/components/record/recording-card';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
+import { useRecordingSessionContext } from '@/features/audio/recording-provider';
+import { createRecordedNoteInput } from '@/features/notes/repository';
+import { useCreateNote } from '@/features/notes/use-notes';
+import {
+  useSuppressVaultLockOnFocus,
+  useSuppressVaultLockWhile,
+} from '@/features/security/use-vault-lock-suppression';
 
 export default function RecordScreen() {
   const router = useRouter();
+  const createNote = useCreateNote();
+  const {
+    phase,
+    permissionDenied,
+    permissionBlocked,
+    error,
+    durationMillis,
+    meteringSamples,
+    start,
+    pause,
+    resume,
+    stopAndSave,
+    ensurePermissions,
+    openMicrophoneSettings,
+    reset,
+  } = useRecordingSessionContext();
+
+  useSuppressVaultLockOnFocus();
+  useSuppressVaultLockWhile(phase === 'recording' || phase === 'paused' || phase === 'saving');
+
+  const handleClose = async () => {
+    if (phase === 'recording' || phase === 'paused') {
+      await reset();
+    }
+    router.back();
+  };
+
+  const handleStop = async () => {
+    const result = await stopAndSave();
+    if (!result) {
+      return;
+    }
+
+    await createNote.mutateAsync(
+      createRecordedNoteInput(result.noteId, result.audioUri, result.durationMs),
+    );
+    router.back();
+  };
 
   return (
     <ThemedView style={styles.container}>
       <View style={styles.header}>
         <ThemedText type="subtitle">Record</ThemedText>
-        <Button label="Close" onPress={() => router.back()} size="sm" variant="ghost" />
+        <Button
+          disabled={phase === 'saving'}
+          label="Close"
+          onPress={handleClose}
+          size="sm"
+          variant="ghost"
+        />
       </View>
 
-      <Card style={styles.card} variant="filled">
-        <View style={styles.micPlaceholder}>
-          <ThemedText themeColor="textSecondary" type="subtitle">
-            🎙
-          </ThemedText>
-        </View>
-        <ThemedText style={styles.cardTitle} type="subtitle">
-          Ready when you are
-        </ThemedText>
-        <ThemedText style={styles.cardBody} themeColor="textSecondary">
-          Tap the button below to start capturing your voice note. Audio recording arrives in Stage
-          4.
-        </ThemedText>
-        <Button disabled fullWidth label="Start Recording" />
-      </Card>
+      <RecordingCard
+        durationMs={durationMillis}
+        error={error}
+        meteringSamples={meteringSamples}
+        onOpenSettings={openMicrophoneSettings}
+        onPause={pause}
+        onRequestPermission={() => {
+          void ensurePermissions();
+        }}
+        onResume={resume}
+        onStart={() => {
+          void start();
+        }}
+        onStop={() => {
+          void handleStop();
+        }}
+        permissionBlocked={permissionBlocked}
+        permissionDenied={permissionDenied}
+        phase={phase}
+      />
     </ThemedView>
   );
 }
@@ -47,23 +103,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  card: {
-    gap: Spacing.md,
-  },
-  micPlaceholder: {
-    alignSelf: 'center',
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardTitle: {
-    textAlign: 'center',
-  },
-  cardBody: {
-    textAlign: 'center',
-    marginBottom: Spacing.sm,
   },
 });

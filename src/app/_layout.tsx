@@ -2,6 +2,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { Colors } from '@/constants/theme';
 import { SecurityProvider } from '@/features/security/security-provider';
@@ -39,19 +40,21 @@ export default function RootLayout() {
         };
 
   return (
-    <QueryProvider>
-      <DatabaseProvider>
-        <SecurityProvider>
-          <ThemeProvider value={navigationTheme}>
-            <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="index" />
-              <Stack.Screen name="(lock)" options={{ animation: 'fade' }} />
-              <Stack.Screen name="(app)" />
-            </Stack>
-          </ThemeProvider>
-        </SecurityProvider>
-      </DatabaseProvider>
-    </QueryProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <QueryProvider>
+        <DatabaseProvider>
+          <SecurityProvider>
+            <ThemeProvider value={navigationTheme}>
+              <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="index" />
+                <Stack.Screen name="(lock)" options={{ animation: 'fade' }} />
+                <Stack.Screen name="(app)" />
+              </Stack>
+            </ThemeProvider>
+          </SecurityProvider>
+        </DatabaseProvider>
+      </QueryProvider>
+    </GestureHandlerRootView>
   );
 }

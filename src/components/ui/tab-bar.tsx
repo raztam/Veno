@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
+import { useSecurityStore } from '@/features/security/security-store';
 import { useTheme } from '@/hooks/use-theme';
 
 type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
@@ -80,7 +81,14 @@ export function AppTabBar({ state, navigation }: TabBarProps) {
       <Pressable
         accessibilityLabel="Record"
         accessibilityRole="button"
-        onPress={() => router.push('/(app)/record')}
+        onPress={() => {
+          const { incrementVaultLockSuppression, decrementVaultLockSuppression } =
+            useSecurityStore.getState();
+          incrementVaultLockSuppression();
+          router.push('/(app)/record');
+          // Cover the sheet transition before the record screen mounts its own suppression.
+          setTimeout(() => decrementVaultLockSuppression(), 2000);
+        }}
         style={styles.recordButton}>
         <View style={[styles.recordInner, { backgroundColor: theme.tint }]}>
           <SymbolView

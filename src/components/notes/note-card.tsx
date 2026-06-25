@@ -55,7 +55,7 @@ export function NoteCard({ note, onPress }: NoteCardProps) {
           </View>
         </View>
         <ThemedText numberOfLines={2} themeColor="textSecondary">
-          {note.transcript}
+          {note.transcript || 'Recording saved. Transcription arrives in Stage 5.'}
         </ThemedText>
         <View style={styles.meta}>
           <ThemedText themeColor="textSecondary" type="small">

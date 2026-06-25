@@ -2,6 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { NotePlayback } from '@/components/notes/note-playback';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ThemedText } from '@/components/themed-text';
@@ -41,7 +42,10 @@ export default function NoteDetailScreen() {
             <ThemedText themeColor="textSecondary" type="small">
               Status: {note.status}
             </ThemedText>
-            <ThemedText style={styles.body}>{note.transcript}</ThemedText>
+            <NotePlayback audioUri={note.audioUri} durationMs={note.durationMs} />
+            <ThemedText style={styles.body}>
+              {note.transcript || 'Recording saved. Transcription arrives in Stage 5.'}
+            </ThemedText>
             <View style={styles.actions}>
               <Button label="Back to Notes" onPress={() => router.back()} variant="secondary" />
               <Button
