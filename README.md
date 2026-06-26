@@ -1,56 +1,157 @@
-# Welcome to your Expo app 👋
+# Veno
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+**Speak it. We'll write it down, summarize it, and pull out your tasks.**
 
-## Get started
+Veno is a premium, local-first AI voice-notes app. Record audio on-device, transcribe it, run an LLM pass for summary and task extraction, and keep everything in a biometrically locked local vault. The only server-side code is a thin set of stateless Expo Router API routes that proxy AI provider calls so internal endpoints and secret keys never ship in the JS bundle.
 
-1. Install dependencies
+For the full product spec, data model, and staged build plan, see [SPEC.md](./SPEC.md).
 
-   ```bash
-   npm install
-   ```
+## Features
 
-2. Start the app
+- **Biometric unlock** — Face ID, Touch ID, or device PIN/pattern via `expo-local-authentication`
+- **Record** — Native audio capture with `expo-audio`
+- **Transcribe** — ElevenLabs Scribe, proxied through `/api/transcribe`
+- **Analyze** — OpenAI via the Vercel AI SDK (`gpt-4o-mini`), proxied through `/api/summarize`
+- **Local storage** — Notes, audio, and tasks live in SQLite (Drizzle ORM) and the app sandbox
+- **Premium gating** — Free tier limits (3 min/day recording, 1 summary/day); Pro via RevenueCat
+- **Observability** — Errors and slow transcriptions reported to Sentry
 
-   ```bash
-   npx expo start
-   ```
+### Out of scope
 
-In the output, you'll find options to open the app in a
+Cloud syncing, multi-device management, user accounts, collaboration, and a web client.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## Tech stack
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+| Layer | Choice |
+| :--- | :--- |
+| App framework | Expo SDK 56 + Expo Router |
+| Language | TypeScript, React 19, React Native 0.85 |
+| Local security | `expo-local-authentication` |
+| Audio | `expo-audio` |
+| Server proxy | Expo Router API routes + EAS Hosting |
+| Transcription | ElevenLabs Scribe → `/api/transcribe` |
+| LLM | OpenAI via Vercel AI SDK → `/api/summarize` |
+| Local DB | `expo-sqlite` + Drizzle ORM |
+| Object storage | `expo-file-system` |
+| Paywall | RevenueCat (`react-native-purchases`) |
+| Observability | Sentry (`@sentry/react-native`) |
+| Styling / state | StyleSheet, Zustand, React Query |
 
-## Get a fresh project
+## Getting started
 
-When you're ready, run:
+### Prerequisites
+
+- Node.js and [Yarn](https://yarnpkg.com/) (this project uses Yarn 4)
+- [Expo dev client](https://docs.expo.dev/develop/development-builds/introduction/) or a native build (`expo run:ios` / `expo run:android`)
+- iOS Simulator, Android emulator, or a physical device
+
+### Install
 
 ```bash
-npm run reset-project
+yarn install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### Environment variables
 
-### Other setup steps
+Copy the example file and fill in your keys:
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```bash
+cp .env.example .env
+```
+
+| Variable | Used by | Where it runs |
+| :--- | :--- | :--- |
+| `EXPO_PUBLIC_REVENUECAT_IOS_KEY` / `_ANDROID_KEY` | RevenueCat | Client |
+| `EXPO_PUBLIC_SENTRY_DSN` | Sentry | Client |
+| `EXPO_PUBLIC_API_BASE_URL` | Client → API routes | Client (EAS Hosting URL) |
+| `EXPO_PUBLIC_APP_API_KEY` | Client → API routes | Client |
+| `API_GATEWAY_KEY` | Proxy authentication | Server only (must match `EXPO_PUBLIC_APP_API_KEY`) |
+| `OPENAI_API_KEY` | OpenAI | Server only (`/api/summarize`) |
+| `ELEVENLABS_API_KEY` | ElevenLabs | Server only (`/api/transcribe`) |
+| `SENTRY_AUTH_TOKEN` | Source-map upload | Build-time only |
+
+**Public keys** (`EXPO_PUBLIC_*`) are inlined into the JS bundle at build time. **Private keys** (no prefix) are read only by Expo Router API routes via `process.env` at request time and never reach the device.
+
+API proxy traffic is protected by a static header check (`EXPO_PUBLIC_APP_API_KEY` vs `API_GATEWAY_KEY`) to prevent unauthorized requests from burning provider compute.
+
+### Run
+
+```bash
+yarn start
+```
+
+Platform shortcuts:
+
+```bash
+yarn ios
+yarn android
+yarn web
+```
+
+### Database migrations
+
+```bash
+yarn db:generate
+```
+
+## Repository layout
+
+```text
+src/
+  app/                       # Expo Router
+    (lock)/                  # Biometric entry
+    (app)/                   # Secure tabs (notes, record, settings, note detail)
+    api/                     # Server-only API routes
+  components/
+    ui/                      # Button, Card, Sheet, etc.
+    record/                  # Waveform, mic button, timer
+    notes/                   # NoteCard, playback, swipe actions
+  features/
+    security/                # Biometric auth state and hooks
+    audio/                   # Recording and playback
+    notes/                   # DB queries and repository
+    transcription/           # Client wrapper for /api/transcribe
+    summarize/               # Client wrapper for /api/summarize
+    entitlements/            # RevenueCat and usage limits
+    telemetry/               # Sentry configuration
+  db/
+    schema.ts                # Drizzle schema
+    client.ts                # SQLite + Drizzle connector
+    migrations/              # Packed migration files
+  constants/
+    theme.ts                 # Color, typography, and spacing tokens
+```
+
+## Scripts
+
+| Command | Description |
+| :--- | :--- |
+| `yarn start` | Start the Expo dev server |
+| `yarn ios` / `yarn android` | Run a native development build |
+| `yarn web` | Start with web output |
+| `yarn lint` | Run ESLint |
+| `yarn db:generate` | Generate Drizzle migrations |
+| `yarn build:android:apk` | Build a release APK |
+| `yarn build:ios` | Build for iOS simulator |
+
+## Construction stages
+
+Development follows a staged plan documented in [SPEC.md](./SPEC.md):
+
+0. Baseline and housekeeping
+1. Navigation shell and design system
+2. Biometric vault lock
+3. Local DB and notes CRUD
+4. Audio recording
+5. Transcription with ElevenLabs
+6. AI summary and task extraction
+7. Paywall with RevenueCat
+8. Observability with Sentry
+9. Polish, export, and share
 
 ## Learn more
 
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- [Expo documentation](https://docs.expo.dev/) (SDK 56)
+- [Expo Router](https://docs.expo.dev/router/introduction/)
+- [Drizzle ORM](https://orm.drizzle.team/)
+- [Vercel AI SDK](https://sdk.vercel.ai/docs)
