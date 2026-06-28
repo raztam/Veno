@@ -1,4 +1,5 @@
 import { StyleSheet, View } from 'react-native';
+import { type Href, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
@@ -10,6 +11,7 @@ import { createTestNoteInput } from '@/features/notes/repository';
 import { useCreateNote, useNotes } from '@/features/notes/use-notes';
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const { data: notes } = useNotes();
   const createNote = useCreateNote();
 
@@ -33,6 +35,11 @@ export default function SettingsScreen() {
             {notes?.length ?? 0} note{notes?.length === 1 ? '' : 's'} stored locally.
           </ThemedText>
           <View style={styles.actions}>
+            <Button
+              label="View Debug Logs"
+              onPress={() => router.push('/(app)/dev-logs' as Href)}
+              variant="secondary"
+            />
             <Button
               label="Add Test Note"
               loading={createNote.isPending}

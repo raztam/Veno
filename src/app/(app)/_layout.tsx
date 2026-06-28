@@ -28,6 +28,7 @@ export default function AppLayout() {
           }}
         />
         <Stack.Screen name="note/[id]" />
+        <Stack.Screen name="dev-logs" />
       </Stack>
     </RecordingProvider>
   );

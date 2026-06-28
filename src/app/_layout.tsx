@@ -1,13 +1,18 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useColorScheme } from 'react-native';
+import { Platform, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { Colors } from '@/constants/theme';
 import { SecurityProvider } from '@/features/security/security-provider';
+import { installDevLogger } from '@/features/telemetry/install-dev-logger';
 import { DatabaseProvider } from '@/providers/database-provider';
 import { QueryProvider } from '@/providers/query-provider';
+
+if (Platform.OS === 'ios' || Platform.OS === 'android') {
+  installDevLogger();
+}
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
