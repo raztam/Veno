@@ -4,6 +4,8 @@ import { Card } from '@/components/ui/card';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import type { Note, NoteStatus } from '@/db/schema';
+import { formatDetectedLanguage } from '@/features/transcription/format-language';
+import { useNoteTranscriptionProgress } from '@/features/transcription/transcription-store';
 import { useTheme } from '@/hooks/use-theme';
 
 type NoteCardProps = {
@@ -37,6 +39,28 @@ function formatDate(epochMs: number): string {
 
 export function NoteCard({ note, onPress }: NoteCardProps) {
   const theme = useTheme();
+  const progress = useNoteTranscriptionProgress(note.id);
+  const languageLabel = formatDetectedLanguage(note.detectedLanguage);
+
+  const previewText = (() => {
+    if (note.status === 'transcribing') {
+      return progress != null ? `Transcribing… ${progress}%` : 'Transcribing…';
+    }
+
+    if (note.status === 'error') {
+      return note.transcript || 'Transcription failed.';
+    }
+
+    if (note.transcript) {
+      return note.transcript;
+    }
+
+    if (note.status === 'recorded') {
+      return 'Waiting to transcribe…';
+    }
+
+    return 'No transcript yet.';
+  })();
 
   return (
     <Pressable
@@ -55,8 +79,13 @@ export function NoteCard({ note, onPress }: NoteCardProps) {
           </View>
         </View>
         <ThemedText numberOfLines={2} themeColor="textSecondary">
-          {note.transcript || 'Recording saved. Transcription arrives in Stage 5.'}
+          {previewText}
         </ThemedText>
+        {languageLabel ? (
+          <ThemedText themeColor="textSecondary" type="small">
+            Transcribed in {languageLabel}
+          </ThemedText>
+        ) : null}
         <View style={styles.meta}>
           <ThemedText themeColor="textSecondary" type="small">
             {formatDate(note.createdAt)}

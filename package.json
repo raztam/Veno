@@ -7,6 +7,7 @@
     "@expo/ui": "~56.0.18",
     "@tanstack/react-query": "^5.101.1",
     "ai": "^6.0.209",
+    "buffer": "^6.0.3",
     "drizzle-orm": "^0.45.2",
     "expo": "~56.0.12",
     "expo-audio": "~56.0.0",
@@ -27,6 +28,7 @@
     "expo-status-bar": "~56.0.4",
     "expo-symbols": "~56.0.6",
     "expo-system-ui": "~56.0.5",
+    "expo-video-audio-extractor": "^0.1.0",
     "expo-web-browser": "~56.0.5",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -37,6 +39,7 @@
     "react-native-screens": "4.25.2",
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.8.3",
+    "whisper.rn": "^0.6.0",
     "zod": "^3.25.76",
     "zustand": "^5.0.14"
   },
@@ -44,6 +47,7 @@
     "@types/react": "~19.2.2",
     "babel-plugin-inline-import": "^3.0.0",
     "drizzle-kit": "^0.31.10",
+    "patch-package": "^8.0.1",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -58,12 +62,12 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "db:generate": "drizzle-kit generate",
+    "postinstall": "patch-package",
     "build": "npm run build:android:apk",
     "build:android": "npm run build:android:apk",
     "install:android": "adb install -r builds/veno-release.apk",
     "logs:android": "adb logcat -c && adb logcat *:S ReactNativeJS:V ReactNative:V ExpoModulesCore:V AndroidRuntime:E",
     "logs:android:veno": "adb logcat -c && adb logcat | rg -i \"veno|ReactNativeJS|whisper|transcription|model\""
   },
-  "private": true,
-  "packageManager": "yarn@4.13.0+sha512.5c20ba010c99815433e5c8453112165e673f1c7948d8d2b267f4b5e52097538658388ebc9f9580656d9b75c5cc996f990f611f99304a2197d4c56d21eea370e7"
+  "private": true
 }

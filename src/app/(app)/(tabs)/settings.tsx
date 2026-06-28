@@ -9,11 +9,37 @@ import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { createTestNoteInput } from '@/features/notes/repository';
 import { useCreateNote, useNotes } from '@/features/notes/use-notes';
+import { isWhisperModelDownloaded } from '@/features/transcription/model-storage';
+import { useTranscriptionStore } from '@/features/transcription/transcription-store';
+import { isWhisperSupported } from '@/features/transcription/whisper-service';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { data: notes } = useNotes();
   const createNote = useCreateNote();
+  const modelStatus = useTranscriptionStore((state) => state.modelStatus);
+  const modelProgress = useTranscriptionStore((state) => state.modelProgress);
+  const whisperReady = isWhisperModelDownloaded();
+
+  const modelStatusLabel = (() => {
+    if (!isWhisperSupported()) {
+      return 'Requires a native iOS or Android build.';
+    }
+
+    if (modelStatus === 'downloading') {
+      return `Downloading Whisper model… ${modelProgress}%`;
+    }
+
+    if (modelStatus === 'error') {
+      return 'Model download failed. Retry by recording a note.';
+    }
+
+    if (whisperReady || modelStatus === 'ready') {
+      return 'Whisper model ready for on-device transcription.';
+    }
+
+    return 'Whisper model downloads on first transcription.';
+  })();
 
   return (
     <ThemedView style={styles.container}>
@@ -27,6 +53,11 @@ export default function SettingsScreen() {
           <ThemedText themeColor="textSecondary">
             Your notes and recordings stay on this device, protected by biometric lock.
           </ThemedText>
+        </Card>
+
+        <Card style={styles.section}>
+          <ThemedText type="subtitle">Transcription</ThemedText>
+          <ThemedText themeColor="textSecondary">{modelStatusLabel}</ThemedText>
         </Card>
 
         <Card style={styles.section}>

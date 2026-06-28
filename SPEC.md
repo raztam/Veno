@@ -1,8 +1,8 @@
-# Voice Notes — Showcase App Spec (Local Vault + OpenAI Edition)
+# Voice Notes — Showcase App Spec (Local Vault + ExecuTorch Edition)
 
-A premium, local-first AI voice-notes app. Records audio, transcribes it **on-device** via Whisper, runs an LLM pass for summary + task extraction using **OpenAI** via the Vercel AI SDK, gates power features behind a local paywall, and reports errors. Notes, audio, tasks, and transcripts are stored locally in the device sandbox and can be **encrypted and backed up** to the user's platform cloud (iCloud on iOS, Google Drive on Android) so data survives an app reinstall from the store. Entry is gated via biometrics (Face ID/Touch ID or device pattern).
+A premium, local-first AI voice-notes app. Records audio, transcribes it **on-device** via Whisper, runs an LLM pass for summary + task extraction **on-device** via **ExecuTorch** (`react-native-executorch`), gates power features behind a local paywall, and reports errors. Notes, audio, tasks, and transcripts are stored locally in the device sandbox and can be **encrypted and backed up** to the user's platform cloud (iCloud on iOS, Google Drive on Android) so data survives an app reinstall from the store. Entry is gated via biometrics (Face ID/Touch ID or device pattern).
 
-The only server-side code is a thin set of stateless Expo Router API routes that proxy AI provider calls so internal endpoints and secret keys never ship in the JS bundle. **Transcription never leaves the device.** Cloud backup uses the platform's native storage tied to the user's App Store / Play Store account — no custom backend or user registration.
+**No cloud AI.** Transcription and summarization never leave the device — no OpenAI API, no proxy routes, no API keys for inference. Cloud backup uses the platform's native storage tied to the user's App Store / Play Store account — no custom backend or user registration.
 
 ---
 
@@ -15,16 +15,16 @@ The only server-side code is a thin set of stateless Expo Router API routes that
 - **Biometric Unlock:** Launching the app triggers an immediate Face ID, Touch ID, or Device PIN/Pattern verification check via `expo-local-authentication`.
 - **Record:** Tap record → speak → tap stop. Audio is captured natively via `expo-audio`.
 - **Transcribe:** App runs [whisper.rn](https://www.npmjs.com/package/whisper.rn) locally against the saved audio file. Language is auto-detected (`language: 'auto'`) with support for all Whisper multilingual model languages; the detected ISO code is persisted on the note.
-- **Analyze:** App runs an LLM pass through an internal API route calling **OpenAI** to produce a title, a 3-bullet summary, a tasks checklist, and contextual tags.
+- **Analyze:** App runs a local LLM via **ExecuTorch** (`react-native-executorch`) to produce a title, a summary (as many bullet points as the model deems useful), a tasks checklist, and contextual tags. The model is prompted for strict JSON; output is parsed and validated with Zod before persisting.
 - **Save:** Note data is saved locally to SQLite via Drizzle ORM and listed on the home screen.
 - **Cloud backup (Pro):** After each note change (debounced) or on demand, the app packages the local vault — SQLite snapshot + audio files — encrypts it, and uploads it to **iCloud** (iOS) or **Google Drive app data** (Android). The backup namespace is keyed by the stable **RevenueCat App User ID**, which is restored automatically when the user reinstalls from the store on the same Apple ID / Google account.
 - **Restore:** On first launch after reinstall, if RevenueCat resolves the same App User ID and a cloud backup exists, the app prompts the user to restore their vault before showing an empty notes list.
 - **Premium Gating:** **Free tier:** 3 minutes/day, 1 summary/day. **Pro (RevenueCat):** unlimited minutes, smart summaries, cloud backup & restore, export to Markdown / share sheet.
-- **Telemetry:** Errors and slow transcriptions are reported to Sentry with anonymized session contexts.
+- **Telemetry:** Errors and slow transcriptions/summarizations are reported to Sentry with anonymized session contexts.
 
 ### Out of scope (intentionally)
 
-Real-time multi-device sync, live collaboration, custom user account registration, web application.
+Real-time multi-device sync, live collaboration, custom user account registration, web application, cloud LLM APIs.
 
 ---
 
@@ -32,38 +32,31 @@ Real-time multi-device sync, live collaboration, custom user account registratio
 
 | Layer               | Choice                                                   | Notes                                                                                                                |
 | :------------------ | :------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------- |
-| **App framework**   | Expo SDK 55 + Expo Router                                | File-based routing, typed routes. Requires a **development build** (prebuild) — not compatible with Expo Go.         |
-| **Language**        | TypeScript, React 19, RN 0.83                            | Modern React Native core architecture.                                                                               |
+| **App framework**   | Expo SDK 56 + Expo Router                                | File-based routing, typed routes. Requires a **development build** (prebuild) — not compatible with Expo Go.         |
+| **Language**        | TypeScript, React 19, RN 0.85                            | Modern React Native core architecture. **New Architecture required** for ExecuTorch.                                 |
 | **Local Security**  | `expo-local-authentication`                              | Replaces cloud auth. Handles native biometric / OS fallback lock.                                                    |
 | **Audio recording** | `expo-audio`                                             | High-fidelity recording layer replacing deprecated `expo-av`.                                                        |
-| **Server Proxy**    | Expo Router API routes + EAS Hosting                     | Stateless `+api.ts` handlers that safely proxy AI provider calls. No DB. Same repo, same deploy.                     |
 | **Transcription**   | [`whisper.rn`](https://www.npmjs.com/package/whisper.rn) | On-device Whisper via whisper.cpp. Multilingual model + `language: 'auto'` for detection. No network call.           |
-| **LLM Engine**      | **OpenAI via Vercel AI SDK** (`ai` + `@ai-sdk/openai`)   | Runs server-side in `/api/summarize+api.ts`. Executes `generateObject` against a Zod schema using **`gpt-4o-mini`**. |
+| **LLM Engine**      | **ExecuTorch** via [`react-native-executorch`](https://docs.swmansion.com/react-native-executorch/) | On-device LLM inference. Pre-exported `.pte` models from the library's Hugging Face catalog (e.g. LFM2.5, Llama 3.2, Phi). Prompted JSON output validated with Zod. |
 | **Local DB**        | `expo-sqlite` + Drizzle ORM                              | Typed relational local queries and migration execution.                                                              |
-| **Object storage**  | `expo-file-system`                                       | Audio blobs saved securely inside the application sandbox.                                                           |
+| **Object storage**  | `expo-file-system`                                       | Audio blobs and downloaded model binaries saved inside the application sandbox.                                      |
 | **Paywall**         | RevenueCat (`react-native-purchases`)                    | Entitlement validation + stable **App User ID** that anchors cloud backup identity across reinstalls.                |
 | **Cloud backup**    | iCloud (iOS) / Google Drive app data (Android)           | Encrypted vault snapshots keyed by RC App User ID. Pro-only. No custom backend.                                      |
-| **Observability**   | Sentry (`@sentry/react-native`)                          | Client & Server performance traces and runtime error catching.                                                       |
+| **Observability**   | Sentry (`@sentry/react-native`)                          | Client performance traces and runtime error catching.                                                                |
 | **Styling / State** | StyleSheet.create / Zustand & React Query                | High performance native layout engine, asynchronous and synchronous state.                                           |
 
 ### Configuration & secrets
 
 All keys live in a top-level, gitignored `.env` file.
 
-- **Public, client-side keys (`EXPO_PUBLIC_*`):** Inlined into the JS bundle at build time. Used for client-facing public SDK initializations and to authenticate the client to the proxy gateway.
-- **Private, server-only keys (No prefix):** Read exclusively by Expo Router API routes via `process.env.*` at request time. **Never reach the device.**
+- **Public, client-side keys (`EXPO_PUBLIC_*`):** Inlined into the JS bundle at build time. Used for client-facing public SDK initializations (RevenueCat, Sentry).
+- **No AI provider secrets:** LLM and transcription models run locally — there is no `OPENAI_API_KEY` or server proxy.
 
-| Var                                               | Used by                   | Where it runs                                                  |
-| :------------------------------------------------ | :------------------------ | :------------------------------------------------------------- |
-| `EXPO_PUBLIC_REVENUECAT_IOS_KEY` / `_ANDROID_KEY` | RevenueCat (Stage 7)      | Client                                                         |
-| `EXPO_PUBLIC_SENTRY_DSN`                          | Sentry (Stage 8)          | Client                                                         |
-| `EXPO_PUBLIC_API_BASE_URL`                        | Client → API routes       | Client (Points at EAS Hosting URL)                             |
-| `EXPO_PUBLIC_APP_API_KEY`                         | Client → API routes       | Client (Static header key proving request originated from app) |
-| `API_GATEWAY_KEY`                                 | Proxy Authentication      | Server only (Must match client's `EXPO_PUBLIC_APP_API_KEY`)    |
-| **`OPENAI_API_KEY`**                              | OpenAI Provider (Stage 6) | Server only (`/api/summarize`)                                 |
-| `SENTRY_AUTH_TOKEN`                               | Source-map upload         | Build-time only                                                |
-
-> **API Gateway Security:** Because we do not use cloud auth tokens, incoming API proxy traffic is protected via a static header matching check (`EXPO_PUBLIC_APP_API_KEY` vs `API_GATEWAY_KEY`) to prevent unauthorized internet scanners from burning your OpenAI compute.
+| Var                                               | Used by              | Where it runs |
+| :------------------------------------------------ | :------------------- | :------------ |
+| `EXPO_PUBLIC_REVENUECAT_IOS_KEY` / `_ANDROID_KEY` | RevenueCat (Stage 7) | Client        |
+| `EXPO_PUBLIC_SENTRY_DSN`                          | Sentry (Stage 8)     | Client        |
+| `SENTRY_AUTH_TOKEN`                               | Source-map upload    | Build-time only |
 
 ---
 
@@ -80,11 +73,7 @@ src/
       record.tsx             # Record screen (modal-style)
       settings.tsx           # Reset vault, developer tools, pro settings
       note/[id].tsx          # Note detail screen
-    api/                     # Expo Router API routes (server-only)
-      _utils/
-        auth.ts              # validates incoming request using API_GATEWAY_KEY
-      summarize+api.ts       # POST transcript → OpenAI via AI SDK
-    _layout.tsx              # Local Providers, Sentry Init, React Query Client
+    _layout.tsx              # Providers, Sentry Init, React Query, initExecutorch
   components/
     ui/                      # buttons, cards, sheets
     record/                  # waveform, mic button, timer
@@ -94,7 +83,7 @@ src/
     security/                # local authentication state and hooks
     audio/                   # recorder service
     transcription/           # whisper.rn context init, transcribe hook, model management
-    summarize/               # client wrapper making requests to /api/summarize + shared Zod schemas
+    summarize/               # ExecuTorch LLM provider, summarize hook, Zod schemas, JSON parsing
     notes/                   # db schema definitions, local queries
     entitlements/            # RevenueCat hooks and local limits counters
     backup/                  # cloud backup/restore adapters, encryption, sync scheduler
@@ -106,7 +95,7 @@ src/
   constants/
     theme.ts                 # core styling tokens
   assets/
-    models/                  # bundled or downloaded ggml Whisper model binaries (.bin)
+    models/                  # optional bundled Whisper (.bin) and LLM (.pte) model binaries
 ```
 
 ---
@@ -126,7 +115,7 @@ export const notes = pgTable("notes", {
   audioUri: text("audio_uri").notNull(), // file:// sandboxed URI
   transcript: text("transcript").notNull(), // Raw text from on-device Whisper
   detectedLanguage: text("detected_language"), // ISO 639-1 code returned by whisper.rn (e.g. 'en', 'he', 'es')
-  summary: text("summary"), // Markdown response text from OpenAI
+  summary: text("summary"), // Markdown summary from on-device LLM
   tags: text("tags"), // Serialized string array JSON
   status: text("status")
     .$type<"recorded" | "transcribing" | "summarizing" | "ready" | "error">()
@@ -162,9 +151,9 @@ Each stage represents a standalone shippable, executable target unit.
 
 - Clean out template pages, remove global.css for clean built-in StyleSheet.create layouts.
 - Add `src/constants/theme.ts` exposing light/dark color primitives, typographic scales, and spacing constants.
-- Install: `zustand`, `@tanstack/react-query`, `drizzle-orm`, `expo-sqlite`, `zod`, `ai`, `@ai-sdk/openai`.
-- Set up `web.output: "server"` or experimental server properties inside `app.config.ts`.
-- Create a stub check path: `app/api/health+api.ts` yielding `{ ok: true }`.
+- Install: `zustand`, `@tanstack/react-query`, `drizzle-orm`, `expo-sqlite`, `zod`, `react-native-executorch`, `react-native-executorch-expo-resource-fetcher`.
+- Call `initExecutorch({ resourceFetcher: ExpoResourceFetcher })` at app entry before any ExecuTorch API usage.
+- Add Metro asset extensions for `.pte` and `.bin` model files in `metro.config.js`.
 - Commit `.env.example`. Ensure local `.env` setups are explicitly safely caught within `.gitignore`.
 
 ### Stage 1 — Navigation shell & design system
@@ -245,45 +234,78 @@ const { result, language } = await promise;
 
 **Done when:** Recording a note in any supported language produces a local transcript and persisted detected language code without any network request.
 
-### Stage 6 — AI summary & task extraction
+### Stage 6 — On-device AI summary & task extraction (ExecuTorch)
 
-- **Shared schema** (`features/summarize/schema.ts`):
+**Prerequisites**
+
+- Enable the **New React Native Architecture** in the project (required by `react-native-executorch`).
+- Run `npx expo prebuild` after adding ExecuTorch — native module, development build only (not Expo Go).
+- Install `react-native-executorch` + `react-native-executorch-expo-resource-fetcher` and call `initExecutorch` in the root layout.
+- iOS 17+ and Android 13+ target platforms per library compatibility table.
+- Test release builds on **real devices** — ExecuTorch release builds may not run on the iOS simulator.
+
+**Model selection**
+
+- Start with a small instruct model from the library catalog, e.g. **`lfm2_5_1_2b_instruct`** (~1.2B params) — good balance of quality and mobile RAM use.
+- Alternatives: `llama_3_2_1b_instruct`, `phi_4_mini`, `qwen3_0_6b` — trade off quality vs. speed and memory.
+- Prefer **quantized** `.pte` exports (4-bit / 8-bit) to keep RAM under ~2–4 GB during inference.
+- Models may be **bundled** at build time (`require('./assets/models/model.pte')`) or **downloaded on first use** via the Expo resource fetcher into the app sandbox — runtime download keeps the initial install smaller but needs network once.
+
+**Shared schema** (`features/summarize/schema.ts`):
 
 ```typescript
 import { z } from "zod";
+
 export const NoteSummarySchema = z.object({
   title: z.string(),
-  summary: z.array(z.string()).max(3), // Enforce strict 3-bullet constraint
+  summary: z.array(z.string()), // Bullet count chosen by the model
   tasks: z.array(z.object({ text: z.string() })),
   tags: z.array(z.string()),
 });
+
+export type NoteSummary = z.infer<typeof NoteSummarySchema>;
 ```
 
-- **Server Handlers** (`app/api/summarize+api.ts`):
+**LLM provider (`features/summarize/summarize-provider.tsx`)**
 
 ```typescript
-import { openai } from "@ai-sdk/openai";
-import { generateObject } from "ai";
-import { NoteSummarySchema } from "../../features/summarize/schema";
+import { initExecutorch, useLLM, models } from "react-native-executorch";
+import { ExpoResourceFetcher } from "react-native-executorch-expo-resource-fetcher";
 
-export async function POST(request: Request) {
-  // 1. Verify authorization using API_GATEWAY_KEY header check
-  // ...
-  const { transcript, detectedLanguage } = await request.json();
+// Call once at app entry (e.g. root _layout.tsx)
+initExecutorch({ resourceFetcher: ExpoResourceFetcher });
 
-  const { object } = await generateObject({
-    model: openai("gpt-4o-mini"),
-    schema: NoteSummarySchema,
-    system:
-      "You are a precise analyzer. Your output must strictly adhere to the structured JSON schema provided.",
-    prompt: `Analyze the following transcript text (detected language: ${detectedLanguage ?? "unknown"}). Generate a clear title, a list of summary points containing exactly 3 bullets total, actionable checklist items, and helpful categorized tags: ${transcript}`,
-  });
-
-  return Response.json(object);
-}
+// Provider wraps the app and exposes a ready LLM instance
+const llm = useLLM({ model: models.llm.lfm2_5_1_2b_instruct() });
+// llm.isReady, llm.downloadProgress, llm.generate(), llm.response, etc.
 ```
 
-- Client automatically schedules execution updates to `summarizing` and maps incoming schema objects into database attributes. Pass `detectedLanguage` alongside the transcript so the LLM can respond appropriately for non-English content.
+**Summarize hook (`features/summarize/use-summarize.ts`)**
+
+```typescript
+const SYSTEM_PROMPT = `You are a precise analyzer. Respond with ONLY valid JSON matching this schema:
+{"title":"string","summary":["bullet1","bullet2"],"tasks":[{"text":"string"}],"tags":["string"]}
+Use as many summary bullets as needed to capture the key points (no fixed limit). No markdown fences, no extra text.`;
+
+const prompt = `Analyze the following transcript (detected language: ${detectedLanguage ?? "unknown"}).
+Generate a clear title, a concise multi-bullet summary, actionable checklist items, and helpful tags.
+
+Transcript:
+${transcript}`;
+
+await llm.generate([{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: prompt }]);
+
+// Extract JSON from llm.response (strip accidental fences), then validate
+const parsed = NoteSummarySchema.parse(JSON.parse(extractJson(llm.response)));
+```
+
+- Update note status: `transcribing` → `summarizing` → `ready` (or `error` on parse/validation failure).
+- Pass `detectedLanguage` in the prompt so the model titles and summarizes appropriately for non-English transcripts.
+- Surface `llm.downloadProgress` during first-run model fetch and generation progress in the note detail UI.
+- Retry once with a stricter "JSON only" reminder if `NoteSummarySchema.safeParse` fails.
+- Tag Sentry spans with model id, transcript length, and token generation time.
+
+**Done when:** A transcribed note produces a validated title, summary, tasks, and tags entirely on-device with no network request (after the model is cached locally).
 
 ### Stage 7 — Paywall with RevenueCat
 
@@ -294,9 +316,9 @@ export async function POST(request: Request) {
 
 ### Stage 8 — Observability with Sentry
 
-- Set up `@sentry/react-native` inside the client bundle layout alongside `@sentry/node` on the server runtime.
-- Pass trace tags between the client headers and processing endpoints to correlate network actions down to single diagnostic logs.
-- Tag local transcription spans with model name, audio duration, and detected language for performance monitoring.
+- Set up `@sentry/react-native` inside the client bundle layout.
+- Tag local transcription spans with Whisper model name, audio duration, and detected language.
+- Tag local summarization spans with ExecuTorch model id, transcript length, and generation duration.
 
 ### Stage 9 — Polish, export, share
 
@@ -379,10 +401,11 @@ features/backup/
 ## 6. Open questions to resolve
 
 1. **Whisper model tier:** `ggml-base.bin` (~140 MB, good balance) vs `ggml-small.bin` (~460 MB, higher accuracy) vs `ggml-tiny.bin` (~75 MB, fastest but less accurate)? Quantized (`q5_0` / `q8_0`) or full precision?
-2. **Model delivery:** Bundle the model in the app binary (simpler, larger install) or download on first launch (smaller install, requires network once)?
-3. **OpenAI Model Selection:** Use `gpt-4o-mini` for cost-efficient structured output, or step up to `gpt-4o` for higher-quality summaries on longer transcripts?
-4. **Rate Limits & Cost Caps:** Should the server proxy enforce per-device or global daily token/cost limits beyond the client-side free-tier counters?
-5. **Local Storage Limit Safeguards:** Should the application implement a maximum size cap for locally saved raw audio files to stop sandbox allocation overflows?
-6. **Backup encryption key:** Derive from RC App User ID alone (simpler restore) or require biometric unlock to decrypt (stronger privacy, harder edge-case recovery)? no biometric unlock
-7. **Backup retention:** Keep only the latest snapshot, or retain the last N versions for rollback?
-8. **Free-tier backup:** Should cloud backup remain Pro-only, or offer a limited backup (e.g. last 5 notes) on the free tier? Pro only
+2. **Whisper model delivery:** Bundle the model in the app binary (simpler, larger install) or download on first launch (smaller install, requires network once)?
+3. **ExecuTorch LLM selection:** `lfm2_5_1_2b_instruct` (balanced) vs `llama_3_2_1b_instruct` (Meta ecosystem) vs `phi_4_mini` / `qwen3_0_6b` (smaller, faster)? Quantization level (4-bit vs 8-bit)?
+4. **LLM model delivery:** Bundle `.pte` in the binary vs download on first summarize (larger one-time download, smaller App Store footprint)?
+5. **Structured output reliability:** Prompt-only JSON vs lightweight post-processing (regex extract + Zod retry) vs future constrained-decoding if the library adds it?
+6. **Local Storage Limit Safeguards:** Should the application implement a maximum size cap for locally saved raw audio files to stop sandbox allocation overflows?
+7. **Backup encryption key:** Derive from RC App User ID alone (simpler restore) or require biometric unlock to decrypt (stronger privacy, harder edge-case recovery)? no biometric unlock
+8. **Backup retention:** Keep only the latest snapshot, or retain the last N versions for rollback?
+9. **Free-tier backup:** Should cloud backup remain Pro-only, or offer a limited backup (e.g. last 5 notes) on the free tier? Pro only

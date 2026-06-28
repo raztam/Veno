@@ -43,14 +43,14 @@ Real-time multi-device sync, custom user accounts, collaboration, and a web clie
 
 ### Prerequisites
 
-- Node.js and [Yarn](https://yarnpkg.com/) (this project uses Yarn 4)
+- Node.js and npm
 - [Expo dev client](https://docs.expo.dev/develop/development-builds/introduction/) or a native build (`expo run:ios` / `expo run:android`)
 - iOS Simulator, Android emulator, or a physical device
 
 ### Install
 
 ```bash
-yarn install
+npm install
 ```
 
 ### Environment variables
@@ -78,21 +78,21 @@ API proxy traffic is protected by a static header check (`EXPO_PUBLIC_APP_API_KE
 ### Run
 
 ```bash
-yarn start
+npm start
 ```
 
 Platform shortcuts:
 
 ```bash
-yarn ios
-yarn android
-yarn web
+npm run ios
+npm run android
+npm run web
 ```
 
 ### Database migrations
 
 ```bash
-yarn db:generate
+npm run db:generate
 ```
 
 ## Repository layout
@@ -128,13 +128,13 @@ src/
 
 | Command | Description |
 | :--- | :--- |
-| `yarn start` | Start the Expo dev server |
-| `yarn ios` / `yarn android` | Run a native development build |
-| `yarn web` | Start with web output |
-| `yarn lint` | Run ESLint |
-| `yarn db:generate` | Generate Drizzle migrations |
-| `yarn build:android:apk` | Build a release APK |
-| `yarn build:ios` | Build for iOS simulator |
+| `npm start` | Start the Expo dev server |
+| `npm run ios` / `npm run android` | Run a native development build |
+| `npm run web` | Start with web output |
+| `npm run lint` | Run ESLint |
+| `npm run db:generate` | Generate Drizzle migrations |
+| `npm run build:android:apk` | Build a release APK |
+| `npm run build:ios` | Build for iOS simulator |
 
 ## Construction stages
 

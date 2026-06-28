@@ -8,6 +8,13 @@
       "when": 1782386448557,
       "tag": "0000_jazzy_human_cannonball",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1782629543712,
+      "tag": "0001_right_thor_girl",
+      "breakpoints": true
     }
   ]
 }

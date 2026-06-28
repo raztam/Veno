@@ -3,6 +3,12 @@
 # dependencies
 node_modules/
 
+# Yarn (project uses npm)
+.yarn/
+.pnp.cjs
+.pnp.loader.mjs
+yarn.lock
+
 # Expo
 .expo/
 dist/

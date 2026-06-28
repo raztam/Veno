@@ -10,12 +10,26 @@ import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { confirmDeleteNote } from '@/features/notes/confirm-delete-note';
 import { useDeleteNote, useNote } from '@/features/notes/use-notes';
+import { formatDetectedLanguage } from '@/features/transcription/format-language';
+import { useNoteTranscriptionProgress } from '@/features/transcription/transcription-store';
+import { useTranscribe } from '@/features/transcription/use-transcribe';
 
 export default function NoteDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { data: note, isLoading } = useNote(id);
   const deleteNote = useDeleteNote();
+  const { retryTranscription } = useTranscribe();
+  const progress = useNoteTranscriptionProgress(id);
+  const languageLabel = formatDetectedLanguage(note?.detectedLanguage);
+
+  const handleRetryTranscription = () => {
+    if (!note || note.status !== 'error') {
+      return;
+    }
+
+    void retryTranscription(note);
+  };
 
   const handleDelete = () => {
     if (!note || !id) return;
@@ -41,12 +55,28 @@ export default function NoteDetailScreen() {
             <ThemedText type="subtitle">{note.title}</ThemedText>
             <ThemedText themeColor="textSecondary" type="small">
               Status: {note.status}
+              {note.status === 'transcribing' && progress != null ? ` (${progress}%)` : ''}
             </ThemedText>
+            {languageLabel ? (
+              <ThemedText themeColor="textSecondary" type="small">
+                Transcribed in {languageLabel}
+              </ThemedText>
+            ) : null}
             <NotePlayback audioUri={note.audioUri} durationMs={note.durationMs} />
             <ThemedText style={styles.body}>
-              {note.transcript || 'Recording saved. Transcription arrives in Stage 5.'}
+              {note.transcript ||
+                (note.status === 'recorded'
+                  ? 'Waiting to transcribe…'
+                  : note.status === 'transcribing'
+                    ? 'Transcribing your recording on-device…'
+                    : note.status === 'error'
+                      ? 'Transcription failed.'
+                      : 'No transcript yet.')}
             </ThemedText>
             <View style={styles.actions}>
+              {note.status === 'error' ? (
+                <Button label="Retry Transcription" onPress={handleRetryTranscription} />
+              ) : null}
               <Button label="Back to Notes" onPress={() => router.back()} variant="secondary" />
               <Button
                 label="Delete Note"

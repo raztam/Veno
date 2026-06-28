@@ -33,6 +33,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'expo-build-properties',
       {
         buildReactNativeFromSource: true,
+        android: {
+          extraProguardRules: '-keep class com.rnwhisper.** { *; }',
+        },
       },
     ],
     [

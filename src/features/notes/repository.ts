@@ -2,7 +2,14 @@ import { desc, eq } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 
 import { db } from '@/db/client';
-import { notes, type NewNote, type Note } from '@/db/schema';
+import { notes, type NewNote, type Note, type NoteStatus } from '@/db/schema';
+
+export type UpdateNoteInput = Partial<
+  Pick<
+    Note,
+    'title' | 'transcript' | 'detectedLanguage' | 'summary' | 'tags' | 'status' | 'updatedAt'
+  >
+>;
 
 export function createNoteId(): string {
   return Crypto.randomUUID();
@@ -72,4 +79,29 @@ export async function insertNote(note: NewNote): Promise<Note> {
 
 export async function removeNote(id: string): Promise<void> {
   await db.delete(notes).where(eq(notes.id, id));
+}
+
+export async function updateNote(id: string, updates: UpdateNoteInput): Promise<Note> {
+  await db
+    .update(notes)
+    .set({
+      ...updates,
+      updatedAt: updates.updatedAt ?? Date.now(),
+    })
+    .where(eq(notes.id, id));
+
+  const updated = await getNoteById(id);
+  if (!updated) {
+    throw new Error('Failed to update note');
+  }
+
+  return updated;
+}
+
+export async function listNotesByStatus(status: NoteStatus): Promise<Note[]> {
+  return db
+    .select()
+    .from(notes)
+    .where(eq(notes.status, status))
+    .orderBy(desc(notes.createdAt));
 }

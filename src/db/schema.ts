@@ -19,6 +19,7 @@ export const notes = sqliteTable('notes', {
   durationMs: integer('duration_ms').notNull(),
   audioUri: text('audio_uri').notNull(),
   transcript: text('transcript').notNull(),
+  detectedLanguage: text('detected_language'),
   summary: text('summary'),
   tags: text('tags'),
   status: text('status').$type<NoteStatus>().notNull(),
