@@ -40,6 +40,25 @@ function isCompleteModelFile(file: File): boolean {
   return file.exists && file.size >= WHISPER_MODEL_MIN_BYTES;
 }
 
+function removeStaleModelFiles(activeFile: File): void {
+  const directory = getModelsDirectory();
+
+  for (const entry of directory.list()) {
+    if (!(entry instanceof File)) {
+      continue;
+    }
+
+    if (entry.uri === activeFile.uri) {
+      continue;
+    }
+
+    if (entry.extension === '.bin') {
+      devLog.info('model', 'Removing stale Whisper model file', { uri: entry.uri });
+      entry.delete();
+    }
+  }
+}
+
 export function getModelsDirectory(): Directory {
   const directory = new Directory(Paths.document, MODELS_DIR_NAME);
 
@@ -122,6 +141,7 @@ export async function ensureWhisperModel(
   onProgress?: (progress: number) => void,
 ): Promise<string> {
   const file = getWhisperModelFile();
+  removeStaleModelFiles(file);
 
   if (isCompleteModelFile(file)) {
     onProgress?.(100);

@@ -3,8 +3,6 @@ import { Directory, File, Paths } from 'expo-file-system';
 import { devLog } from '@/features/telemetry/dev-logger';
 
 const TRANSCRIBE_CACHE_DIR = 'transcribe-cache';
-const WHISPER_WAV_SAMPLE_RATE = 16000;
-const WHISPER_WAV_CHANNELS = 1;
 
 export type WhisperAudioSource = {
   wavUri: string;
@@ -68,12 +66,13 @@ export async function prepareWhisperAudio(
   const sourcePath = toFilesystemPath(audioUri);
   const outputPath = toFilesystemPath(outputFile.uri);
 
+  // Do not override sampleRate/channels — the extractor writes decoded PCM as-is.
+  // Mis-matched headers (e.g. 16 kHz mono label on 44.1 kHz stereo data) garble Whisper output.
+  // whisper.rn resamples and downmixes to 16 kHz mono from a correct WAV header.
   await extractAudio({
     video: sourcePath,
     output: outputPath,
     format: 'wav',
-    channels: WHISPER_WAV_CHANNELS,
-    sampleRate: WHISPER_WAV_SAMPLE_RATE,
   });
 
   if (!outputFile.exists || outputFile.size === 0) {

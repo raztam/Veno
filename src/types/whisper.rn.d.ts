@@ -18,6 +18,8 @@ declare module 'whisper.rn' {
       stop: () => Promise<void>;
       promise: Promise<TranscribeResult>;
     };
+
+    release(): Promise<void>;
   }
 
   export type ContextOptions = {

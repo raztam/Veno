@@ -9,6 +9,7 @@ import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { createTestNoteInput } from '@/features/notes/repository';
 import { useCreateNote, useNotes } from '@/features/notes/use-notes';
+import { WHISPER_MODEL_LABEL } from '@/features/transcription/constants';
 import { isWhisperModelDownloaded } from '@/features/transcription/model-storage';
 import { useTranscriptionStore } from '@/features/transcription/transcription-store';
 import { isWhisperSupported } from '@/features/transcription/whisper-service';
@@ -27,18 +28,18 @@ export default function SettingsScreen() {
     }
 
     if (modelStatus === 'downloading') {
-      return `Downloading Whisper model… ${modelProgress}%`;
+      return `Downloading ${WHISPER_MODEL_LABEL}… ${modelProgress}%`;
     }
 
     if (modelStatus === 'error') {
-      return 'Model download failed. Retry by recording a note.';
+      return `${WHISPER_MODEL_LABEL} download failed. Retry by recording a note.`;
     }
 
     if (whisperReady || modelStatus === 'ready') {
-      return 'Whisper model ready for on-device transcription.';
+      return `${WHISPER_MODEL_LABEL} ready for on-device transcription.`;
     }
 
-    return 'Whisper model downloads on first transcription.';
+    return `${WHISPER_MODEL_LABEL} (~466 MB) downloads on first transcription.`;
   })();
 
   return (
