@@ -6,7 +6,8 @@ import { Spacing } from '@/constants/theme';
 import type { Note, NoteStatus } from '@/db/schema';
 import { formatDetectedLanguage } from '@/features/transcription/format-language';
 import { useNoteTranscriptionProgress } from '@/features/transcription/transcription-store';
-import { useNoteSummarizeTokenCount, useSummarizeModelProgress } from '@/features/summarize/summarize-store';
+import { useNoteSummarizeTokenCount } from '@/features/summarize/summarize-store';
+import { useSummarizeModelProgress } from '@/features/models/model-download-store';
 import { useTheme } from '@/hooks/use-theme';
 
 type NoteCardProps = {

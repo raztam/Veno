@@ -12,9 +12,19 @@ import {
   downloadWhisperModelInBackground,
   isWhisperModelDownloadInProgress,
 } from '@/features/models/background-whisper-download';
-import { useModelDownloadStore } from '@/features/models/model-download-store';
+import {
+  isSummarizeModelDownloadInProgress,
+  requestSummarizeModelDownload,
+} from '@/features/models/background-summarize-download';
+import { useModelDownloadStore, useSummarizeModelProgress } from '@/features/models/model-download-store';
 import { createTestNoteInput } from '@/features/notes/repository';
 import { useCreateNote, useNotes } from '@/features/notes/use-notes';
+import {
+  SUMMARIZE_MODEL_LABEL,
+  SUMMARIZE_MODEL_SIZE_HINT,
+} from '@/features/summarize/constants';
+import { isSummarizeModelDownloaded } from '@/features/summarize/summarize-model-storage';
+import { isSummarizeSupported } from '@/features/summarize/support';
 import { WHISPER_MODEL_LABEL } from '@/features/transcription/constants';
 import { isWhisperModelDownloaded } from '@/features/transcription/model-storage';
 import { useTranscriptionStore } from '@/features/transcription/transcription-store';
@@ -29,14 +39,27 @@ export default function SettingsScreen() {
   const whisperDownloadStatus = useModelDownloadStore((state) => state.whisperStatus);
   const whisperDownloadProgress = useModelDownloadStore((state) => state.whisperProgress);
   const whisperDownloadError = useModelDownloadStore((state) => state.whisperError);
+  const summarizeDownloadStatus = useModelDownloadStore((state) => state.summarizeStatus);
+  const summarizeDownloadProgress = useModelDownloadStore((state) => state.summarizeProgress);
+  const summarizeDownloadError = useModelDownloadStore((state) => state.summarizeError);
   const setModelStatus = useTranscriptionStore((state) => state.setModelStatus);
   const setModelProgress = useTranscriptionStore((state) => state.setModelProgress);
   const whisperReady = isWhisperModelDownloaded();
-  const isDownloading =
+  const summarizeReady = isSummarizeModelDownloaded();
+  const isWhisperDownloading =
     isWhisperModelDownloadInProgress() ||
     whisperDownloadStatus === 'downloading' ||
     transcriptionModelStatus === 'downloading';
-  const downloadProgress = Math.max(whisperDownloadProgress, transcriptionModelProgress);
+  const whisperProgress = Math.max(whisperDownloadProgress, transcriptionModelProgress);
+  const { status: summarizeModelStatus, downloadProgress: summarizeDownloadProgressFraction } =
+    useSummarizeModelProgress();
+  const isSummarizeDownloading =
+    isSummarizeModelDownloadInProgress() || summarizeDownloadStatus === 'downloading';
+  const summarizeProgress = Math.max(summarizeDownloadProgress, summarizeDownloadProgressFraction * 100);
+
+  const handleDownloadSummarizeModel = useCallback(() => {
+    void requestSummarizeModelDownload();
+  }, []);
 
   const handleDownloadWhisperModel = useCallback(() => {
     setModelStatus('downloading');
@@ -54,13 +77,13 @@ export default function SettingsScreen() {
       });
   }, [setModelProgress, setModelStatus]);
 
-  const modelStatusLabel = (() => {
+  const whisperStatusLabel = (() => {
     if (!isWhisperSupported()) {
       return 'Requires a native iOS or Android build.';
     }
 
-    if (isDownloading) {
-      return `Downloading ${WHISPER_MODEL_LABEL}… ${downloadProgress}%`;
+    if (isWhisperDownloading) {
+      return `Downloading ${WHISPER_MODEL_LABEL}… ${whisperProgress}%`;
     }
 
     if (whisperDownloadStatus === 'error' || transcriptionModelStatus === 'error') {
@@ -74,7 +97,29 @@ export default function SettingsScreen() {
     return `${WHISPER_MODEL_LABEL} (~466 MB) downloads in the background. You can lock your screen or switch apps.`;
   })();
 
-  const showDownloadButton = isWhisperSupported() && !whisperReady && !isDownloading;
+  const summarizeStatusLabel = (() => {
+    if (!isSummarizeSupported()) {
+      return 'Requires a native iOS or Android build.';
+    }
+
+    if (isSummarizeDownloading) {
+      return `Downloading ${SUMMARIZE_MODEL_LABEL}… ${Math.round(summarizeProgress)}%`;
+    }
+
+    if (summarizeDownloadStatus === 'error' || summarizeModelStatus === 'error') {
+      return summarizeDownloadError ?? `${SUMMARIZE_MODEL_LABEL} download failed. Tap download to retry.`;
+    }
+
+    if (summarizeReady || summarizeDownloadStatus === 'ready' || summarizeModelStatus === 'ready') {
+      return `${SUMMARIZE_MODEL_LABEL} ready for on-device summaries and task extraction.`;
+    }
+
+    return `${SUMMARIZE_MODEL_LABEL} (${SUMMARIZE_MODEL_SIZE_HINT}) downloads in the background. You can lock your screen or switch apps.`;
+  })();
+
+  const showWhisperDownloadButton = isWhisperSupported() && !whisperReady && !isWhisperDownloading;
+  const showSummarizeDownloadButton =
+    isSummarizeSupported() && !summarizeReady && !isSummarizeDownloading;
 
   return (
     <ThemedView style={styles.container}>
@@ -92,12 +137,26 @@ export default function SettingsScreen() {
 
         <Card style={styles.section}>
           <ThemedText type="subtitle">Transcription</ThemedText>
-          <ThemedText themeColor="textSecondary">{modelStatusLabel}</ThemedText>
-          {showDownloadButton ? (
+          <ThemedText themeColor="textSecondary">{whisperStatusLabel}</ThemedText>
+          {showWhisperDownloadButton ? (
             <View style={styles.actions}>
               <Button
                 label="Download voice model"
                 onPress={handleDownloadWhisperModel}
+                variant="secondary"
+              />
+            </View>
+          ) : null}
+        </Card>
+
+        <Card style={styles.section}>
+          <ThemedText type="subtitle">Summarization</ThemedText>
+          <ThemedText themeColor="textSecondary">{summarizeStatusLabel}</ThemedText>
+          {showSummarizeDownloadButton ? (
+            <View style={styles.actions}>
+              <Button
+                label="Download summary model"
+                onPress={handleDownloadSummarizeModel}
                 variant="secondary"
               />
             </View>

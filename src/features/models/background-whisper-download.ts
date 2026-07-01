@@ -1,6 +1,4 @@
-import { Directory, DownloadTask, File, Paths } from 'expo-file-system';
-import { Platform } from 'react-native';
-import BackgroundService from 'react-native-background-actions';
+import { DownloadTask, File } from 'expo-file-system';
 
 import {
   WHISPER_MODEL_DOWNLOAD_BASE_DELAY_MS,
@@ -15,49 +13,29 @@ import {
 } from '@/features/transcription/model-storage';
 import { devLog } from '@/features/telemetry/dev-logger';
 
+import { runInBackgroundTask, updateBackgroundTaskProgress } from './background-task';
 import {
   clearWhisperDownloadPauseState,
   readWhisperDownloadPauseState,
   writeWhisperDownloadPauseState,
 } from './download-pause-state';
+import { isRetryableNetworkError, normalizeProgress, sleep } from './download-utils';
 import { useModelDownloadStore } from './model-download-store';
 
-const RETRYABLE_NETWORK_ERROR =
-  /socket|connection abort|connection reset|timed out|timeout|network|unable to resolve|econnreset|econnaborted|enetunreach/i;
+const WHISPER_BACKGROUND_TASK = {
+  taskName: 'VenoWhisperDownload',
+  taskTitle: 'Downloading voice model',
+  taskDesc: 'Veno · Whisper model (~466 MB)',
+  linkingURI: 'veno://settings',
+} as const;
 
 let activeDownload: Promise<string> | null = null;
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function isRetryableNetworkError(error: unknown): boolean {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === 'string'
-        ? error
-        : String(error);
-
-  return RETRYABLE_NETWORK_ERROR.test(message);
-}
-
 function updateWhisperProgress(progress: number, onProgress?: (progress: number) => void): void {
-  const normalized = Math.max(0, Math.min(100, Math.round(progress)));
-  const { setWhisperProgress } = useModelDownloadStore.getState();
-  setWhisperProgress(normalized);
+  const normalized = normalizeProgress(progress);
+  useModelDownloadStore.getState().setWhisperProgress(normalized);
   onProgress?.(normalized);
-
-  if (Platform.OS === 'android' && BackgroundService.isRunning()) {
-    void BackgroundService.updateNotification({
-      taskDesc: `Veno · Whisper model ${normalized}%`,
-      progressBar: {
-        max: 100,
-        value: normalized,
-        indeterminate: normalized === 0,
-      },
-    });
-  }
+  updateBackgroundTaskProgress(`Veno · Whisper model ${normalized}%`, normalized);
 }
 
 function createWhisperDownloadTask(
@@ -123,7 +101,10 @@ async function performWhisperDownload(onProgress?: (progress: number) => void): 
 
   for (let attempt = 1; attempt <= WHISPER_MODEL_DOWNLOAD_MAX_ATTEMPTS; attempt++) {
     try {
-      devLog.info('model', `Downloading Whisper model (attempt ${attempt}/${WHISPER_MODEL_DOWNLOAD_MAX_ATTEMPTS})`);
+      devLog.info(
+        'model',
+        `Downloading Whisper model (attempt ${attempt}/${WHISPER_MODEL_DOWNLOAD_MAX_ATTEMPTS})`,
+      );
       const downloaded = await downloadWhisperWithTask(destination, onProgress);
 
       if (!isCompleteModelFile(downloaded)) {
@@ -131,7 +112,10 @@ async function performWhisperDownload(onProgress?: (progress: number) => void): 
       }
 
       useModelDownloadStore.getState().setWhisperStatus('ready');
-      devLog.info('model', 'Whisper model download complete', { bytes: downloaded.size, uri: downloaded.uri });
+      devLog.info('model', 'Whisper model download complete', {
+        bytes: downloaded.size,
+        uri: downloaded.uri,
+      });
       return downloaded.uri;
     } catch (error) {
       lastError = error;
@@ -157,57 +141,8 @@ async function performWhisperDownload(onProgress?: (progress: number) => void): 
   throw new Error(message, { cause: lastError });
 }
 
-async function runWithAndroidForegroundService(
-  onProgress?: (progress: number) => void,
-): Promise<string> {
-  if (BackgroundService.isRunning() && activeDownload) {
-    return activeDownload;
-  }
-
-  let resultUri: string | undefined;
-  let error: unknown;
-
-  const task = async () => {
-    try {
-      resultUri = await performWhisperDownload(onProgress);
-    } catch (taskError) {
-      error = taskError;
-    }
-  };
-
-  await BackgroundService.start(task, {
-    taskName: 'VenoWhisperDownload',
-    taskTitle: 'Downloading voice model',
-    taskDesc: 'Veno · Whisper model (~466 MB)',
-    taskIcon: {
-      name: 'ic_launcher',
-      type: 'mipmap',
-    },
-    color: '#208AEF',
-    linkingURI: 'veno://settings',
-    foregroundServiceType: ['dataSync'],
-    progressBar: {
-      max: 100,
-      value: 0,
-      indeterminate: true,
-    },
-  });
-
-  if (error) {
-    throw error;
-  }
-
-  if (!resultUri) {
-    throw new Error('Whisper model download finished without a file path.');
-  }
-
-  return resultUri;
-}
-
 export function isWhisperModelDownloadInProgress(): boolean {
-  return (
-    useModelDownloadStore.getState().whisperStatus === 'downloading' || BackgroundService.isRunning()
-  );
+  return useModelDownloadStore.getState().whisperStatus === 'downloading';
 }
 
 export async function downloadWhisperModelInBackground(
@@ -225,11 +160,9 @@ export async function downloadWhisperModelInBackground(
 
   activeDownload = (async () => {
     try {
-      if (Platform.OS === 'android') {
-        return await runWithAndroidForegroundService(onProgress);
-      }
-
-      return await performWhisperDownload(onProgress);
+      return await runInBackgroundTask(WHISPER_BACKGROUND_TASK, () =>
+        performWhisperDownload(onProgress),
+      );
     } finally {
       activeDownload = null;
     }

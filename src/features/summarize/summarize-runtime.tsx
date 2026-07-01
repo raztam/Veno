@@ -6,7 +6,6 @@ import { devLog } from '@/features/telemetry/dev-logger';
 
 import { isNoteSummarizationQueued } from './summarize-queue';
 import { SummarizeContextProvider, useSummarizeContext } from './summarize-context';
-import { useSummarizeStore } from './summarize-store';
 import type { SummarizeLlm } from './summarize-types';
 import { useSummarize } from './use-summarize';
 
@@ -14,7 +13,6 @@ function SummarizeQueueManager({ children }: PropsWithChildren) {
   const { data: notes } = useNotes();
   const updateNote = useUpdateNote();
   const { summarizeNote } = useSummarize();
-  const modelStatus = useSummarizeStore((state) => state.modelStatus);
   const { isSupported, llm } = useSummarizeContext();
   const recoveredStuckNotesRef = useRef(false);
 
@@ -23,22 +21,10 @@ function SummarizeQueueManager({ children }: PropsWithChildren) {
       return;
     }
 
-    const { setModelDownloadProgress, setModelStatus } = useSummarizeStore.getState();
-
     if (llm.error) {
-      setModelStatus('error');
-      return;
+      devLog.error('summarize', 'LLM failed to load', llm.error);
     }
-
-    if (!llm.isReady) {
-      setModelStatus('downloading');
-      setModelDownloadProgress(llm.downloadProgress);
-      return;
-    }
-
-    setModelStatus('ready');
-    setModelDownloadProgress(1);
-  }, [llm, llm?.downloadProgress, llm?.error, llm?.isReady]);
+  }, [llm, llm?.error]);
 
   useEffect(() => {
     if (!isSupported || !notes || recoveredStuckNotesRef.current) {
@@ -78,7 +64,7 @@ function SummarizeQueueManager({ children }: PropsWithChildren) {
 
     devLog.info('summarize', `Queueing auto-summarization for note ${pendingNote.id}`);
     void summarizeNote(pendingNote);
-  }, [isSupported, llm?.isReady, modelStatus, notes, summarizeNote]);
+  }, [isSupported, llm?.isReady, notes, summarizeNote]);
 
   return children;
 }

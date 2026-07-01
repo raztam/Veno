@@ -1,16 +1,18 @@
 import type { PropsWithChildren } from 'react';
-import { initExecutorch, models, useLLM } from 'react-native-executorch';
-import { ExpoResourceFetcher } from 'react-native-executorch-expo-resource-fetcher';
+import { useLLM } from 'react-native-executorch';
 
 import { useNotes } from '@/features/notes/use-notes';
+import { useModelDownloadStore } from '@/features/models/model-download-store';
 
+import { ensureExecutorchInitialized } from './executorch-init';
+import { getSummarizeLlmModel } from './summarize-model-config';
+import { isSummarizeModelDownloaded } from './summarize-model-storage';
 import { SummarizeRuntime } from './summarize-runtime';
 import { isSummarizeSupported } from './support';
 
-initExecutorch({ resourceFetcher: ExpoResourceFetcher });
-
 function ExecutorchSummarizeBridge({ children }: PropsWithChildren) {
-  const llm = useLLM({ model: models.llm.lfm2_5_1_2b_instruct() });
+  ensureExecutorchInitialized();
+  const llm = useLLM({ model: getSummarizeLlmModel() });
 
   return (
     <SummarizeRuntime isSupported llm={llm}>
@@ -27,6 +29,7 @@ function hasPendingSummarization(
 
 export function SummarizeProvider({ children }: PropsWithChildren) {
   const { data: notes } = useNotes();
+  const summarizeDownloadStatus = useModelDownloadStore((state) => state.summarizeStatus);
 
   if (!isSummarizeSupported()) {
     return (
@@ -36,13 +39,16 @@ export function SummarizeProvider({ children }: PropsWithChildren) {
     );
   }
 
-  if (!hasPendingSummarization(notes)) {
-    return (
-      <SummarizeRuntime isSupported llm={null}>
-        {children}
-      </SummarizeRuntime>
-    );
+  if (
+    hasPendingSummarization(notes) &&
+    (isSummarizeModelDownloaded() || summarizeDownloadStatus === 'ready')
+  ) {
+    return <ExecutorchSummarizeBridge>{children}</ExecutorchSummarizeBridge>;
   }
 
-  return <ExecutorchSummarizeBridge>{children}</ExecutorchSummarizeBridge>;
+  return (
+    <SummarizeRuntime isSupported llm={null}>
+      {children}
+    </SummarizeRuntime>
+  );
 }

@@ -16,8 +16,8 @@ import { useDeleteNote, useNote, useNoteTasks, useToggleTaskDone } from '@/featu
 import { parseTagsJson } from '@/features/summarize/format-summary';
 import {
   useNoteSummarizeTokenCount,
-  useSummarizeModelProgress,
 } from '@/features/summarize/summarize-store';
+import { useSummarizeModelProgress } from '@/features/models/model-download-store';
 import { useSummarize } from '@/features/summarize/use-summarize';
 import { formatDetectedLanguage } from '@/features/transcription/format-language';
 import { useNoteTranscriptionProgress } from '@/features/transcription/transcription-store';
