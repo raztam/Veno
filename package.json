@@ -54,7 +54,7 @@
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
-    "build:android:apk": "cd android && ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a && cp app/build/outputs/apk/release/app-release.apk ../builds/veno-release.apk",
+    "build:android:apk": "node ./scripts/android-build.js",
     "ios": "expo run:ios",
     "run:ios": "expo run:ios",
     "build:ios:simulator": "mkdir -p builds && expo run:ios --device generic --output ./builds --no-bundler",

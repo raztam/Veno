@@ -32,8 +32,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       'expo-build-properties',
       {
-        buildReactNativeFromSource: true,
+        ios: {
+          newArchEnabled: true,
+        },
         android: {
+          newArchEnabled: true,
+          buildReactNativeFromSource: false,
           extraProguardRules: '-keep class com.rnwhisper.** { *; }',
         },
       },
@@ -61,6 +65,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         faceIDPermission: 'Allow Veno to use Face ID to protect your notes.',
       },
     ],
+    './plugins/with-prebuilt-react-native.js',
   ],
   experiments: {
     typedRoutes: true,
