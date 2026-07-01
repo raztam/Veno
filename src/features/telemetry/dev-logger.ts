@@ -94,6 +94,38 @@ function pushLog(level: DevLogLevel, tag: string, message: string, details?: str
 
   if (isNativeDevice()) {
     appendToLogFile(entry);
+    mirrorToLogcat(level, tag, message, details);
+  }
+}
+
+function mirrorToLogcat(
+  level: DevLogLevel,
+  tag: string,
+  message: string,
+  details?: string,
+): void {
+  const line = `[${tag}] ${message}`;
+  const args = details === undefined ? [line] : [line, details];
+
+  (globalThis as typeof globalThis & { __devLogMirroring?: boolean }).__devLogMirroring = true;
+
+  try {
+    switch (level) {
+      case 'error':
+        console.error(...args);
+        break;
+      case 'warn':
+        console.warn(...args);
+        break;
+      case 'debug':
+        console.log(...args);
+        break;
+      default:
+        console.info(...args);
+        break;
+    }
+  } finally {
+    (globalThis as typeof globalThis & { __devLogMirroring?: boolean }).__devLogMirroring = false;
   }
 }
 

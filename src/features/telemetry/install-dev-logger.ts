@@ -35,24 +35,44 @@ export function installDevLogger(): void {
   };
 
   console.log = (...args: unknown[]) => {
+    if ((globalThis as typeof globalThis & { __devLogMirroring?: boolean }).__devLogMirroring) {
+      originalConsole.log(...args);
+      return;
+    }
+
     const { message, details } = formatConsoleArgs(args);
     devLog.debug('console', message, details);
     originalConsole.log(...args);
   };
 
   console.info = (...args: unknown[]) => {
+    if ((globalThis as typeof globalThis & { __devLogMirroring?: boolean }).__devLogMirroring) {
+      originalConsole.info(...args);
+      return;
+    }
+
     const { message, details } = formatConsoleArgs(args);
     devLog.info('console', message, details);
     originalConsole.info(...args);
   };
 
   console.warn = (...args: unknown[]) => {
+    if ((globalThis as typeof globalThis & { __devLogMirroring?: boolean }).__devLogMirroring) {
+      originalConsole.warn(...args);
+      return;
+    }
+
     const { message, details } = formatConsoleArgs(args);
     devLog.warn('console', message, details);
     originalConsole.warn(...args);
   };
 
   console.error = (...args: unknown[]) => {
+    if ((globalThis as typeof globalThis & { __devLogMirroring?: boolean }).__devLogMirroring) {
+      originalConsole.error(...args);
+      return;
+    }
+
     const { message, details } = formatConsoleArgs(args);
     devLog.error('console', message, details);
     originalConsole.error(...args);
