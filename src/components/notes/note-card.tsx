@@ -6,6 +6,7 @@ import { Spacing } from '@/constants/theme';
 import type { Note, NoteStatus } from '@/db/schema';
 import { formatDetectedLanguage } from '@/features/transcription/format-language';
 import { useNoteTranscriptionProgress } from '@/features/transcription/transcription-store';
+import { useNoteSummarizeTokenCount, useSummarizeModelProgress } from '@/features/summarize/summarize-store';
 import { useTheme } from '@/hooks/use-theme';
 
 type NoteCardProps = {
@@ -40,6 +41,8 @@ function formatDate(epochMs: number): string {
 export function NoteCard({ note, onPress }: NoteCardProps) {
   const theme = useTheme();
   const progress = useNoteTranscriptionProgress(note.id);
+  const summarizeTokens = useNoteSummarizeTokenCount(note.id);
+  const { status: modelStatus, downloadProgress } = useSummarizeModelProgress();
   const languageLabel = formatDetectedLanguage(note.detectedLanguage);
 
   const previewText = (() => {
@@ -47,8 +50,24 @@ export function NoteCard({ note, onPress }: NoteCardProps) {
       return progress != null ? `Transcribing… ${progress}%` : 'Transcribing…';
     }
 
+    if (note.status === 'summarizing') {
+      if (modelStatus === 'downloading') {
+        return `Downloading AI model… ${Math.round(downloadProgress * 100)}%`;
+      }
+
+      if (summarizeTokens != null && summarizeTokens > 0) {
+        return `Summarizing… ${summarizeTokens} tokens`;
+      }
+
+      return 'Summarizing on-device…';
+    }
+
     if (note.status === 'error') {
-      return note.transcript || 'Transcription failed.';
+      return note.transcript || 'Processing failed.';
+    }
+
+    if (note.summary) {
+      return note.summary.replace(/^[-*]\s*/gm, '').split('\n')[0] ?? note.summary;
     }
 
     if (note.transcript) {

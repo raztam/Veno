@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { type Href, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,6 +8,11 @@ import { Card } from '@/components/ui/card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import {
+  downloadWhisperModelInBackground,
+  isWhisperModelDownloadInProgress,
+} from '@/features/models/background-whisper-download';
+import { useModelDownloadStore } from '@/features/models/model-download-store';
 import { createTestNoteInput } from '@/features/notes/repository';
 import { useCreateNote, useNotes } from '@/features/notes/use-notes';
 import { WHISPER_MODEL_LABEL } from '@/features/transcription/constants';
@@ -18,29 +24,57 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { data: notes } = useNotes();
   const createNote = useCreateNote();
-  const modelStatus = useTranscriptionStore((state) => state.modelStatus);
-  const modelProgress = useTranscriptionStore((state) => state.modelProgress);
+  const transcriptionModelStatus = useTranscriptionStore((state) => state.modelStatus);
+  const transcriptionModelProgress = useTranscriptionStore((state) => state.modelProgress);
+  const whisperDownloadStatus = useModelDownloadStore((state) => state.whisperStatus);
+  const whisperDownloadProgress = useModelDownloadStore((state) => state.whisperProgress);
+  const whisperDownloadError = useModelDownloadStore((state) => state.whisperError);
+  const setModelStatus = useTranscriptionStore((state) => state.setModelStatus);
+  const setModelProgress = useTranscriptionStore((state) => state.setModelProgress);
   const whisperReady = isWhisperModelDownloaded();
+  const isDownloading =
+    isWhisperModelDownloadInProgress() ||
+    whisperDownloadStatus === 'downloading' ||
+    transcriptionModelStatus === 'downloading';
+  const downloadProgress = Math.max(whisperDownloadProgress, transcriptionModelProgress);
+
+  const handleDownloadWhisperModel = useCallback(() => {
+    setModelStatus('downloading');
+    setModelProgress(0);
+
+    void downloadWhisperModelInBackground((progress) => {
+      setModelProgress(progress);
+    })
+      .then(() => {
+        setModelStatus('ready');
+        setModelProgress(100);
+      })
+      .catch(() => {
+        setModelStatus('error');
+      });
+  }, [setModelProgress, setModelStatus]);
 
   const modelStatusLabel = (() => {
     if (!isWhisperSupported()) {
       return 'Requires a native iOS or Android build.';
     }
 
-    if (modelStatus === 'downloading') {
-      return `Downloading ${WHISPER_MODEL_LABEL}… ${modelProgress}%`;
+    if (isDownloading) {
+      return `Downloading ${WHISPER_MODEL_LABEL}… ${downloadProgress}%`;
     }
 
-    if (modelStatus === 'error') {
-      return `${WHISPER_MODEL_LABEL} download failed. Retry by recording a note.`;
+    if (whisperDownloadStatus === 'error' || transcriptionModelStatus === 'error') {
+      return whisperDownloadError ?? `${WHISPER_MODEL_LABEL} download failed. Tap download to retry.`;
     }
 
-    if (whisperReady || modelStatus === 'ready') {
+    if (whisperReady || whisperDownloadStatus === 'ready' || transcriptionModelStatus === 'ready') {
       return `${WHISPER_MODEL_LABEL} ready for on-device transcription.`;
     }
 
-    return `${WHISPER_MODEL_LABEL} (~466 MB) downloads on first transcription.`;
+    return `${WHISPER_MODEL_LABEL} (~466 MB) downloads in the background. You can lock your screen or switch apps.`;
   })();
+
+  const showDownloadButton = isWhisperSupported() && !whisperReady && !isDownloading;
 
   return (
     <ThemedView style={styles.container}>
@@ -59,6 +93,15 @@ export default function SettingsScreen() {
         <Card style={styles.section}>
           <ThemedText type="subtitle">Transcription</ThemedText>
           <ThemedText themeColor="textSecondary">{modelStatusLabel}</ThemedText>
+          {showDownloadButton ? (
+            <View style={styles.actions}>
+              <Button
+                label="Download voice model"
+                onPress={handleDownloadWhisperModel}
+                variant="secondary"
+              />
+            </View>
+          ) : null}
         </Card>
 
         <Card style={styles.section}>

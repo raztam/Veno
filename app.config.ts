@@ -15,6 +15,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: 'com.raztamim.veno',
+    permissions: [
+      'android.permission.FOREGROUND_SERVICE',
+      'android.permission.FOREGROUND_SERVICE_DATA_SYNC',
+      'android.permission.POST_NOTIFICATIONS',
+    ],
     adaptiveIcon: {
       backgroundColor: '#E6F4FE',
       foregroundImage: './assets/images/android-icon-foreground.png',
@@ -42,6 +47,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         },
       },
     ],
+    'expo-asset',
     [
       'expo-splash-screen',
       {
@@ -65,6 +71,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         faceIDPermission: 'Allow Veno to use Face ID to protect your notes.',
       },
     ],
+    'expo-notifications',
+    './plugins/with-model-download-service.js',
     './plugins/with-prebuilt-react-native.js',
   ],
   experiments: {

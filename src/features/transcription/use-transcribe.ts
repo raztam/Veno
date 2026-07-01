@@ -89,7 +89,7 @@ async function transcribeNoteInternal(
       updates: {
         transcript,
         detectedLanguage: language || null,
-        status: 'ready',
+        status: 'summarizing',
       },
     });
   } catch (error) {

@@ -10,6 +10,7 @@
     "buffer": "^6.0.3",
     "drizzle-orm": "^0.45.2",
     "expo": "~56.0.12",
+    "expo-asset": "~56.0.17",
     "expo-audio": "~56.0.0",
     "expo-build-properties": "~56.0.19",
     "expo-constants": "~56.0.18",
@@ -22,6 +23,7 @@
     "expo-image": "~56.0.11",
     "expo-linking": "~56.0.14",
     "expo-local-authentication": "~56.0.4",
+    "expo-notifications": "~56.0.19",
     "expo-router": "~56.2.11",
     "expo-splash-screen": "~56.0.10",
     "expo-sqlite": "~56.0.5",
@@ -33,6 +35,9 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.85.3",
+    "react-native-background-actions": "^4.1.0",
+    "react-native-executorch": "^0.9.2",
+    "react-native-executorch-expo-resource-fetcher": "^0.9.1",
     "react-native-gesture-handler": "~2.31.1",
     "react-native-reanimated": "4.3.1",
     "react-native-safe-area-context": "~5.7.0",
@@ -69,5 +74,6 @@
     "logs:android": "adb logcat -c && adb logcat *:S ReactNativeJS:V ReactNative:V ExpoModulesCore:V AndroidRuntime:E",
     "logs:android:veno": "adb logcat -c && adb logcat | rg -i \"veno|ReactNativeJS|whisper|transcription|model\""
   },
-  "private": true
+  "private": true,
+  "packageManager": "yarn@4.13.0+sha512.5c20ba010c99815433e5c8453112165e673f1c7948d8d2b267f4b5e52097538658388ebc9f9580656d9b75c5cc996f990f611f99304a2197d4c56d21eea370e7"
 }

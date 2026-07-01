@@ -1,14 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import type { NewNote, Note } from '@/db/schema';
+import type { NewNote, Note, Task } from '@/db/schema';
 
 import { notesKeys } from './query-keys';
 import {
   getNoteById,
   insertNote,
   listNotes,
+  listTasksForNote,
   removeNote,
   updateNote,
+  updateTaskDone,
   type UpdateNoteInput,
 } from './repository';
 
@@ -66,6 +68,28 @@ export function useUpdateNote() {
         current?.map((existing) => (existing.id === note.id ? note : existing)),
       );
       queryClient.setQueryData(notesKeys.detail(note.id), note);
+    },
+  });
+}
+
+export function useNoteTasks(noteId: string | undefined) {
+  return useQuery({
+    queryKey: notesKeys.tasks(noteId ?? ''),
+    queryFn: () => listTasksForNote(noteId!),
+    enabled: Boolean(noteId),
+  });
+}
+
+export function useToggleTaskDone(noteId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ taskId, done }: { taskId: string; done: boolean }) =>
+      updateTaskDone(taskId, done),
+    onSuccess: (task) => {
+      queryClient.setQueryData<Task[]>(notesKeys.tasks(noteId), (current) =>
+        current?.map((existing) => (existing.id === task.id ? task : existing)),
+      );
     },
   });
 }

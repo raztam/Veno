@@ -4,4 +4,5 @@ export const notesKeys = {
   list: () => [...notesKeys.lists()] as const,
   details: () => [...notesKeys.all, 'detail'] as const,
   detail: (id: string) => [...notesKeys.details(), id] as const,
+  tasks: (noteId: string) => [...notesKeys.all, 'tasks', noteId] as const,
 };

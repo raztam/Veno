@@ -10,6 +10,8 @@ import { Colors } from '@/constants/theme';
 import { SecurityProvider } from '@/features/security/security-provider';
 import { DatabaseProvider } from '@/providers/database-provider';
 import { QueryProvider } from '@/providers/query-provider';
+import { ModelDownloadProvider } from '@/features/models/model-download-provider';
+import { SummarizeProvider } from '@/features/summarize/summarize-provider';
 import { TranscriptionProvider } from '@/features/transcription/transcription-provider';
 
 export default function RootLayout() {
@@ -46,18 +48,22 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <QueryProvider>
         <DatabaseProvider>
-          <TranscriptionProvider>
-            <SecurityProvider>
-              <ThemeProvider value={navigationTheme}>
-                <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
-                <Stack screenOptions={{ headerShown: false }}>
-                  <Stack.Screen name="index" />
-                  <Stack.Screen name="(lock)" options={{ animation: 'fade' }} />
-                  <Stack.Screen name="(app)" />
-                </Stack>
-              </ThemeProvider>
-            </SecurityProvider>
-          </TranscriptionProvider>
+          <ModelDownloadProvider>
+            <TranscriptionProvider>
+              <SummarizeProvider>
+                <SecurityProvider>
+                <ThemeProvider value={navigationTheme}>
+                  <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+                  <Stack screenOptions={{ headerShown: false }}>
+                    <Stack.Screen name="index" />
+                    <Stack.Screen name="(lock)" options={{ animation: 'fade' }} />
+                    <Stack.Screen name="(app)" />
+                  </Stack>
+                </ThemeProvider>
+                </SecurityProvider>
+              </SummarizeProvider>
+            </TranscriptionProvider>
+          </ModelDownloadProvider>
         </DatabaseProvider>
       </QueryProvider>
     </GestureHandlerRootView>

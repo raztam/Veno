@@ -2,7 +2,7 @@ import { desc, eq } from 'drizzle-orm';
 import * as Crypto from 'expo-crypto';
 
 import { db } from '@/db/client';
-import { notes, type NewNote, type Note, type NoteStatus } from '@/db/schema';
+import { notes, tasks, type NewNote, type Note, type NoteStatus, type Task } from '@/db/schema';
 
 export type UpdateNoteInput = Partial<
   Pick<
@@ -104,4 +104,48 @@ export async function listNotesByStatus(status: NoteStatus): Promise<Note[]> {
     .from(notes)
     .where(eq(notes.status, status))
     .orderBy(desc(notes.createdAt));
+}
+
+export async function listTasksForNote(noteId: string): Promise<Task[]> {
+  return db
+    .select()
+    .from(tasks)
+    .where(eq(tasks.noteId, noteId))
+    .orderBy(tasks.sortOrder);
+}
+
+export type ReplaceTaskInput = {
+  text: string;
+  sortOrder: number;
+};
+
+export async function replaceTasksForNote(noteId: string, nextTasks: ReplaceTaskInput[]): Promise<Task[]> {
+  await db.delete(tasks).where(eq(tasks.noteId, noteId));
+
+  if (nextTasks.length === 0) {
+    return [];
+  }
+
+  await db.insert(tasks).values(
+    nextTasks.map((task) => ({
+      id: Crypto.randomUUID(),
+      noteId,
+      text: task.text,
+      done: 0,
+      sortOrder: task.sortOrder,
+    })),
+  );
+
+  return listTasksForNote(noteId);
+}
+
+export async function updateTaskDone(taskId: string, done: boolean): Promise<Task> {
+  await db.update(tasks).set({ done: done ? 1 : 0 }).where(eq(tasks.id, taskId));
+
+  const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
+  if (!task) {
+    throw new Error('Failed to update task');
+  }
+
+  return task;
 }
