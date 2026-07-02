@@ -29,7 +29,8 @@ function hasPendingSummarization(
 
 export function SummarizeProvider({ children }: PropsWithChildren) {
   const { data: notes } = useNotes();
-  const summarizeDownloadStatus = useModelDownloadStore((state) => state.summarizeStatus);
+  // Re-render when background download finishes so we can mount the LLM bridge.
+  useModelDownloadStore((state) => state.summarizeStatus);
 
   if (!isSummarizeSupported()) {
     return (
@@ -39,10 +40,7 @@ export function SummarizeProvider({ children }: PropsWithChildren) {
     );
   }
 
-  if (
-    hasPendingSummarization(notes) &&
-    (isSummarizeModelDownloaded() || summarizeDownloadStatus === 'ready')
-  ) {
+  if (hasPendingSummarization(notes) && isSummarizeModelDownloaded()) {
     return <ExecutorchSummarizeBridge>{children}</ExecutorchSummarizeBridge>;
   }
 

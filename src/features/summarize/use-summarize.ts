@@ -72,18 +72,24 @@ async function summarizeNoteInternal(
   devLog.info('summarize', `Starting summarization for note ${note.id}`, {
     transcriptLength: transcript.length,
     detectedLanguage: note.detectedLanguage,
+    llmReady: llm.isReady,
   });
 
   if (!transcript) {
     await updateNote.mutateAsync({
       id: note.id,
-      updates: { status: 'error' },
+      updates: { status: 'error', summary: 'Cannot summarize an empty transcript.' },
     });
     return;
   }
 
   if (!llm.isReady) {
-    throw new Error('Summarization model is not ready yet.');
+    devLog.warn('summarize', `LLM not ready yet for note ${note.id}, deferring`);
+    return;
+  }
+
+  if (llm.error) {
+    throw llm.error;
   }
 
   await updateNote.mutateAsync({
@@ -174,8 +180,13 @@ export function useSummarize() {
   const runSummarization = useCallback(
     (note: Note) =>
       runExclusiveSummarization(note.id, async () => {
-        if (!isSummarizeSupported() || !llm) {
+        if (!isSummarizeSupported()) {
           await finalizeWithoutSummarization(note, updateNote);
+          return;
+        }
+
+        if (!llm) {
+          devLog.warn('summarize', `LLM bridge not mounted for note ${note.id}, deferring`);
           return;
         }
 
@@ -205,14 +216,13 @@ export function useSummarize() {
         return;
       }
 
+      devLog.info('summarize', `Retry requested for note ${note.id}`);
       await updateNote.mutateAsync({
         id: note.id,
         updates: { status: 'summarizing', summary: null },
       });
-
-      return runSummarization({ ...note, status: 'summarizing', summary: null });
     },
-    [runSummarization, updateNote],
+    [updateNote],
   );
 
   return { summarizeNote, retrySummarization };

@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NotePlayback } from '@/components/notes/note-playback';
 import { SummaryView } from '@/components/notes/summary-view';
@@ -50,6 +50,7 @@ function getStatusDetail(
 export default function NoteDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { data: note, isLoading } = useNote(id);
   const { data: tasks = [] } = useNoteTasks(id);
   const deleteNote = useDeleteNote();
@@ -120,12 +121,18 @@ export default function NoteDetailScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedText style={styles.header} type="title">
-          Note
-        </ThemedText>
+      <SafeAreaView edges={['top']} style={styles.safeArea}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: insets.bottom + Spacing.xl },
+          ]}
+          showsVerticalScrollIndicator={false}>
+          <ThemedText style={styles.header} type="title">
+            Note
+          </ThemedText>
 
-        {isLoading ? (
+          {isLoading ? (
           <View style={styles.loading}>
             <ActivityIndicator />
           </View>
@@ -185,6 +192,7 @@ export default function NoteDetailScreen() {
             <Button label="Back to Notes" onPress={() => router.back()} variant="secondary" />
           </Card>
         )}
+        </ScrollView>
       </SafeAreaView>
     </ThemedView>
   );
@@ -196,10 +204,13 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-    paddingHorizontal: Spacing.lg,
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
     width: '100%',
+  },
+  scrollContent: {
+    paddingHorizontal: Spacing.lg,
+    flexGrow: 1,
   },
   header: {
     paddingTop: Spacing.md,

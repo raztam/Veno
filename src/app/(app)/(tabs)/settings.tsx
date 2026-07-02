@@ -1,13 +1,13 @@
 import { useCallback } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { type Href, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import {
   downloadWhisperModelInBackground,
   isWhisperModelDownloadInProgress,
@@ -32,6 +32,7 @@ import { isWhisperSupported } from '@/features/transcription/whisper-service';
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { data: notes } = useNotes();
   const createNote = useCreateNote();
   const transcriptionModelStatus = useTranscriptionStore((state) => state.modelStatus);
@@ -124,11 +125,17 @@ export default function SettingsScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView edges={['top']} style={styles.safeArea}>
-        <ThemedText style={styles.header} type="title">
-          Settings
-        </ThemedText>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: BottomTabInset + insets.bottom + Spacing.xl },
+          ]}
+          showsVerticalScrollIndicator={false}>
+          <ThemedText style={styles.header} type="title">
+            Settings
+          </ThemedText>
 
-        <Card style={styles.section}>
+          <Card style={styles.section}>
           <ThemedText type="subtitle">Vault</ThemedText>
           <ThemedText themeColor="textSecondary">
             Your notes and recordings stay on this device, protected by biometric lock.
@@ -197,6 +204,7 @@ export default function SettingsScreen() {
             Veno — Speak it. We&apos;ll write it down, summarize it, and pull out your tasks.
           </ThemedText>
         </Card>
+        </ScrollView>
       </SafeAreaView>
     </ThemedView>
   );
@@ -208,11 +216,13 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing.md,
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
     width: '100%',
+  },
+  scrollContent: {
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.md,
   },
   header: {
     paddingTop: Spacing.md,

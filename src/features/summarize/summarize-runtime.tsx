@@ -51,7 +51,41 @@ function SummarizeQueueManager({ children }: PropsWithChildren) {
   }, [isSupported, notes, updateNote]);
 
   useEffect(() => {
-    if (isSupported && !llm?.isReady) {
+    if (!llm?.error || !notes) {
+      return;
+    }
+
+    const pendingNotes = notes.filter(
+      (note) => note.status === 'summarizing' && note.transcript.trim(),
+    );
+
+    if (pendingNotes.length === 0) {
+      return;
+    }
+
+    const message =
+      llm.error instanceof Error
+        ? llm.error.message
+        : typeof llm.error === 'string'
+          ? llm.error
+          : 'Summarization model failed to load.';
+
+    void (async () => {
+      for (const note of pendingNotes) {
+        devLog.error('summarize', `LLM load failed for note ${note.id}`, llm.error);
+        await updateNote.mutateAsync({
+          id: note.id,
+          updates: {
+            status: 'error',
+            summary: message,
+          },
+        });
+      }
+    })();
+  }, [llm?.error, notes, updateNote]);
+
+  useEffect(() => {
+    if (!isSupported || !llm?.isReady) {
       return;
     }
 
@@ -64,7 +98,7 @@ function SummarizeQueueManager({ children }: PropsWithChildren) {
 
     devLog.info('summarize', `Queueing auto-summarization for note ${pendingNote.id}`);
     void summarizeNote(pendingNote);
-  }, [isSupported, llm?.isReady, notes, summarizeNote]);
+  }, [isSupported, llm, llm?.isReady, notes, summarizeNote]);
 
   return children;
 }

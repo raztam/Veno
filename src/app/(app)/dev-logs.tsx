@@ -3,7 +3,7 @@ import * as Device from 'expo-device';
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { FlatList, Share, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
 import { ThemedText } from '@/components/themed-text';
@@ -60,6 +60,7 @@ function LogRow({ entry }: { entry: DevLogEntry }) {
 export default function DevLogsScreen() {
   const router = useRouter();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { entries, clear } = useDevLogs();
 
   const header = useMemo(() => {
@@ -107,7 +108,10 @@ export default function DevLogsScreen() {
         </View>
 
         <FlatList
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: insets.bottom + Spacing.xl },
+          ]}
           data={[...entries].reverse()}
           keyExtractor={(item) => item.id}
           ListEmptyComponent={
