@@ -56,12 +56,12 @@
     "typescript": "~6.0.3"
   },
   "scripts": {
-    "start": "expo start",
+    "start": "expo start --localhost --port 8085",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
     "build:android:apk": "node ./scripts/android-build.js",
-    "ios": "expo run:ios",
-    "run:ios": "expo run:ios",
+    "ios": "expo run:ios --device \"iPhone 17 Pro\" --port 8085",
+    "run:ios": "expo run:ios --device \"iPhone 17 Pro\" --port 8085",
     "build:ios:simulator": "mkdir -p builds && expo run:ios --device generic --output ./builds --no-bundler",
     "build:ios": "npm run build:ios:simulator",
     "web": "expo start --web",

@@ -1,5 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { SymbolView } from 'expo-symbols';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NotePlayback } from '@/components/notes/note-playback';
@@ -22,6 +23,7 @@ import { useSummarize } from '@/features/summarize/use-summarize';
 import { formatDetectedLanguage } from '@/features/transcription/format-language';
 import { useNoteTranscriptionProgress } from '@/features/transcription/transcription-store';
 import { useTranscribe } from '@/features/transcription/use-transcribe';
+import { useTheme } from '@/hooks/use-theme';
 
 function getStatusDetail(
   status: string,
@@ -50,6 +52,7 @@ function getStatusDetail(
 export default function NoteDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { data: note, isLoading } = useNote(id);
   const { data: tasks = [] } = useNoteTasks(id);
@@ -128,9 +131,42 @@ export default function NoteDetailScreen() {
             { paddingBottom: insets.bottom + Spacing.xl },
           ]}
           showsVerticalScrollIndicator={false}>
-          <ThemedText style={styles.header} type="title">
-            Note
-          </ThemedText>
+          <View style={styles.header}>
+            <View style={styles.headerStart}>
+              <Pressable
+                accessibilityLabel="Back to notes"
+                accessibilityRole="button"
+                hitSlop={8}
+                onPress={() => router.back()}
+                style={({ pressed }) => [styles.iconButton, { opacity: pressed ? 0.6 : 1 }]}>
+                <SymbolView
+                  name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }}
+                  size={22}
+                  tintColor={theme.tint}
+                />
+              </Pressable>
+              <ThemedText type="title">Note</ThemedText>
+            </View>
+            {note ? (
+              <Pressable
+                accessibilityLabel="Delete note"
+                accessibilityRole="button"
+                disabled={deleteNote.isPending}
+                hitSlop={8}
+                onPress={handleDelete}
+                style={({ pressed }) => [styles.iconButton, { opacity: pressed || deleteNote.isPending ? 0.6 : 1 }]}>
+                {deleteNote.isPending ? (
+                  <ActivityIndicator color={theme.error} size="small" />
+                ) : (
+                  <SymbolView
+                    name={{ ios: 'trash', android: 'delete', web: 'delete' }}
+                    size={22}
+                    tintColor={theme.error}
+                  />
+                )}
+              </Pressable>
+            ) : null}
+          </View>
 
           {isLoading ? (
           <View style={styles.loading}>
@@ -167,21 +203,15 @@ export default function NoteDetailScreen() {
               />
             ) : null}
             {note.status === 'ready' ? <TagList tags={tags} /> : null}
-            <View style={styles.actions}>
-              {note.status === 'error' && !note.transcript.trim() ? (
-                <Button label="Retry Transcription" onPress={handleRetryTranscription} />
-              ) : null}
-              {note.status === 'error' && note.transcript.trim() ? (
-                <Button label="Retry Summarization" onPress={handleRetrySummarization} />
-              ) : null}
-              <Button label="Back to Notes" onPress={() => router.back()} variant="secondary" />
-              <Button
-                label="Delete Note"
-                loading={deleteNote.isPending}
-                onPress={handleDelete}
-                variant="destructive"
-              />
-            </View>
+            {note.status === 'error' ? (
+              <View style={styles.actions}>
+                {!note.transcript.trim() ? (
+                  <Button label="Retry Transcription" onPress={handleRetryTranscription} />
+                ) : (
+                  <Button label="Retry Summarization" onPress={handleRetrySummarization} />
+                )}
+              </View>
+            ) : null}
           </Card>
         ) : (
           <Card>
@@ -189,7 +219,6 @@ export default function NoteDetailScreen() {
             <ThemedText style={styles.body} themeColor="textSecondary">
               This note may have been deleted.
             </ThemedText>
-            <Button label="Back to Notes" onPress={() => router.back()} variant="secondary" />
           </Card>
         )}
         </ScrollView>
@@ -213,8 +242,20 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingTop: Spacing.md,
     paddingBottom: Spacing.lg,
+  },
+  headerStart: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    flex: 1,
+  },
+  iconButton: {
+    padding: Spacing.xs,
   },
   loading: {
     flex: 1,

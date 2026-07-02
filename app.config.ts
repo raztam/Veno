@@ -1,5 +1,10 @@
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 
+// Simulator/dev-client loads must use localhost — VPN/LAN IPs like 11.x are blocked by ATS.
+process.env.REACT_NATIVE_PACKAGER_HOSTNAME ??= 'localhost';
+// Moodle Docker uses 8081/8082 on this machine — keep Metro on a free port.
+process.env.RCT_METRO_PORT ??= '8085';
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'Veno',
@@ -12,6 +17,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     bundleIdentifier: 'com.raztamim.veno',
     icon: './assets/expo.icon',
+    infoPlist: {
+      NSAppTransportSecurity: {
+        NSAllowsArbitraryLoads: true,
+        NSAllowsLocalNetworking: true,
+      },
+    },
   },
   android: {
     package: 'com.raztamim.veno',
@@ -39,6 +50,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         ios: {
           newArchEnabled: true,
+          deploymentTarget: '17.0',
         },
         android: {
           newArchEnabled: true,

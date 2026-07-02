@@ -1,11 +1,11 @@
 import { useRef } from 'react';
-import { Pressable, StyleSheet } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { SymbolView } from 'expo-symbols';
 import ReanimatedSwipeable, {
   SwipeDirection,
   type SwipeableMethods,
 } from 'react-native-gesture-handler/ReanimatedSwipeable';
 
-import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
 import type { Note } from '@/db/schema';
 import { confirmDeleteNote } from '@/features/notes/confirm-delete-note';
@@ -13,7 +13,8 @@ import { useTheme } from '@/hooks/use-theme';
 
 import { NoteCard } from './note-card';
 
-const DELETE_ACTION_WIDTH = 80;
+const DELETE_ACTION_WIDTH = 56;
+const DELETE_BUTTON_SIZE = 44;
 
 type SwipeableNoteCardProps = {
   note: Note;
@@ -37,13 +38,22 @@ export function SwipeableNoteCard({
   };
 
   const renderRightActions = () => (
-    <Pressable
-      accessibilityLabel="Delete note"
-      accessibilityRole="button"
-      onPress={handleDeletePress}
-      style={[styles.deleteButton, { backgroundColor: theme.error }]}>
-      <ThemedText style={styles.deleteLabel}>Delete</ThemedText>
-    </Pressable>
+    <View style={styles.deleteAction}>
+      <Pressable
+        accessibilityLabel="Delete note"
+        accessibilityRole="button"
+        onPress={handleDeletePress}
+        style={({ pressed }) => [
+          styles.deleteButton,
+          { backgroundColor: theme.error, opacity: pressed ? 0.85 : 1 },
+        ]}>
+        <SymbolView
+          name={{ ios: 'trash', android: 'delete', web: 'delete' }}
+          size={20}
+          tintColor="#FFFFFF"
+        />
+      </Pressable>
+    </View>
   );
 
   return (
@@ -57,24 +67,24 @@ export function SwipeableNoteCard({
       }}
       overshootRight={false}
       renderRightActions={renderRightActions}
-      rightThreshold={40}>
+      rightThreshold={28}>
       <NoteCard note={note} onPress={onPress} />
     </ReanimatedSwipeable>
   );
 }
 
 const styles = StyleSheet.create({
-  deleteButton: {
+  deleteAction: {
     width: DELETE_ACTION_WIDTH,
     marginLeft: Spacing.sm,
-    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteButton: {
+    width: DELETE_BUTTON_SIZE,
+    height: DELETE_BUTTON_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: Radius.lg,
-  },
-  deleteLabel: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 14,
+    borderRadius: Radius.md,
   },
 });
