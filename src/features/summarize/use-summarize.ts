@@ -7,10 +7,10 @@ import { notesKeys } from '@/features/notes/query-keys';
 import { useUpdateNote } from '@/features/notes/use-notes';
 import { devLog } from '@/features/telemetry/dev-logger';
 
-import { STRICT_JSON_RETRY_REMINDER, SYSTEM_PROMPT } from './constants';
-import { extractJson } from './extract-json';
+import { JSON_REPAIR_REMINDER, STRICT_JSON_RETRY_REMINDER, SYSTEM_PROMPT } from './constants';
+import { parseSummaryResponse } from './parse-summary-response';
 import { formatSummaryMarkdown } from './format-summary';
-import { NoteSummarySchema, type NoteSummary } from './schema';
+import type { NoteSummary } from './schema';
 import { runExclusiveSummarization } from './summarize-queue';
 import { useSummarizeContext } from './summarize-context';
 import { useSummarizeStore } from './summarize-store';
@@ -38,28 +38,32 @@ Transcript:
 ${transcript}`;
 }
 
-function parseSummaryResponse(raw: string): NoteSummary {
-  const json = extractJson(raw);
-  return NoteSummarySchema.parse(JSON.parse(json));
+function parseSummary(raw: string): NoteSummary {
+  return parseSummaryResponse(raw);
 }
 
 async function generateSummary(
   llm: SummarizeLlm,
   transcript: string,
   detectedLanguage: string | null,
-  retryStrictJson: boolean,
+  options: { strictJson?: boolean; repairRaw?: string } = {},
 ): Promise<NoteSummary> {
   const messages: SummarizeMessage[] = [
     { role: 'system', content: SYSTEM_PROMPT },
     { role: 'user', content: buildUserPrompt(transcript, detectedLanguage) },
   ];
 
-  if (retryStrictJson) {
+  if (options.repairRaw) {
+    messages.push({
+      role: 'user',
+      content: `${JSON_REPAIR_REMINDER}${options.repairRaw.slice(0, 1200)}`,
+    });
+  } else if (options.strictJson) {
     messages.push({ role: 'user', content: STRICT_JSON_RETRY_REMINDER });
   }
 
   const response = await llm.generate(messages);
-  return parseSummaryResponse(response);
+  return parseSummary(response);
 }
 
 async function summarizeNoteInternal(
@@ -106,12 +110,31 @@ async function summarizeNoteInternal(
 
   try {
     let summary: NoteSummary;
+    let rawResponse = '';
 
     try {
-      summary = await generateSummary(llm, transcript, note.detectedLanguage, false);
+      rawResponse = await llm.generate([
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: buildUserPrompt(transcript, note.detectedLanguage) },
+      ]);
+      summary = parseSummary(rawResponse);
     } catch (firstError) {
-      devLog.warn('summarize', `First parse failed for note ${note.id}, retrying with strict JSON`, firstError);
-      summary = await generateSummary(llm, transcript, note.detectedLanguage, true);
+      devLog.warn('summarize', `First parse failed for note ${note.id}, retrying with strict JSON`, {
+        error: firstError,
+        responsePreview: rawResponse.slice(0, 240),
+      });
+
+      try {
+        summary = await generateSummary(llm, transcript, note.detectedLanguage, { strictJson: true });
+      } catch (secondError) {
+        devLog.warn('summarize', `Second parse failed for note ${note.id}, retrying JSON repair`, {
+          error: secondError,
+          responsePreview: rawResponse.slice(0, 240),
+        });
+        summary = await generateSummary(llm, transcript, note.detectedLanguage, {
+          repairRaw: rawResponse,
+        });
+      }
     }
 
     await replaceTasksForNote(
