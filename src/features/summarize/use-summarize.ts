@@ -14,7 +14,12 @@ import type { NoteSummary } from './schema';
 import { runExclusiveSummarization } from './summarize-queue';
 import { useSummarizeContext } from './summarize-context';
 import { useSummarizeStore } from './summarize-store';
-import { traceSummarization, traceSummarizationError } from './summarize-tracing';
+import {
+  setSummarizationSpanMetrics,
+  traceSummarization,
+  traceSummarizationError,
+  withSummarizationSpan,
+} from './summarize-tracing';
 import type { SummarizeLlm, SummarizeMessage } from './summarize-types';
 import { isSummarizeSupported } from './support';
 
@@ -109,59 +114,67 @@ async function summarizeNoteInternal(
   const startedAt = Date.now();
 
   try {
-    let summary: NoteSummary;
-    let rawResponse = '';
+    await withSummarizationSpan(
+      { noteId: note.id, transcriptLength: transcript.length },
+      async () => {
+        let summary: NoteSummary;
+        let rawResponse = '';
 
-    try {
-      rawResponse = await llm.generate([
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserPrompt(transcript, note.detectedLanguage) },
-      ]);
-      summary = parseSummary(rawResponse);
-    } catch (firstError) {
-      devLog.warn('summarize', `First parse failed for note ${note.id}, retrying with strict JSON`, {
-        error: firstError,
-        responsePreview: rawResponse.slice(0, 240),
-      });
+        try {
+          rawResponse = await llm.generate([
+            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'user', content: buildUserPrompt(transcript, note.detectedLanguage) },
+          ]);
+          summary = parseSummary(rawResponse);
+        } catch (firstError) {
+          devLog.warn('summarize', `First parse failed for note ${note.id}, retrying with strict JSON`, {
+            error: firstError,
+            responsePreview: rawResponse.slice(0, 240),
+          });
 
-      try {
-        summary = await generateSummary(llm, transcript, note.detectedLanguage, { strictJson: true });
-      } catch (secondError) {
-        devLog.warn('summarize', `Second parse failed for note ${note.id}, retrying JSON repair`, {
-          error: secondError,
-          responsePreview: rawResponse.slice(0, 240),
+          try {
+            summary = await generateSummary(llm, transcript, note.detectedLanguage, { strictJson: true });
+          } catch (secondError) {
+            devLog.warn('summarize', `Second parse failed for note ${note.id}, retrying JSON repair`, {
+              error: secondError,
+              responsePreview: rawResponse.slice(0, 240),
+            });
+            summary = await generateSummary(llm, transcript, note.detectedLanguage, {
+              repairRaw: rawResponse,
+            });
+          }
+        }
+
+        await replaceTasksForNote(
+          note.id,
+          summary.tasks.map((task, index) => ({
+            text: task.text,
+            sortOrder: index,
+          })),
+        );
+        invalidateTasks(note.id);
+
+        await updateNote.mutateAsync({
+          id: note.id,
+          updates: {
+            title: summary.title.trim() || note.title,
+            summary: formatSummaryMarkdown(summary.summary),
+            tags: JSON.stringify(summary.tags),
+            status: 'ready',
+          },
         });
-        summary = await generateSummary(llm, transcript, note.detectedLanguage, {
-          repairRaw: rawResponse,
+
+        const durationMs = Date.now() - startedAt;
+        const tokenCount = llm.getGeneratedTokenCount();
+        setSummarizationSpanMetrics(durationMs, tokenCount);
+        traceSummarization({
+          noteId: note.id,
+          transcriptLength: transcript.length,
+          durationMs,
+          tokenCount,
         });
-      }
-    }
-
-    await replaceTasksForNote(
-      note.id,
-      summary.tasks.map((task, index) => ({
-        text: task.text,
-        sortOrder: index,
-      })),
-    );
-    invalidateTasks(note.id);
-
-    await updateNote.mutateAsync({
-      id: note.id,
-      updates: {
-        title: summary.title.trim() || note.title,
-        summary: formatSummaryMarkdown(summary.summary),
-        tags: JSON.stringify(summary.tags),
-        status: 'ready',
       },
-    });
-
-    traceSummarization({
-      noteId: note.id,
-      transcriptLength: transcript.length,
-      durationMs: Date.now() - startedAt,
-      tokenCount: llm.getGeneratedTokenCount(),
-    });
+    );
   } catch (error) {
     traceSummarizationError(note.id, error);
     await updateNote.mutateAsync({

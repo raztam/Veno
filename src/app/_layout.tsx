@@ -8,13 +8,14 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { Colors } from '@/constants/theme';
 import { SecurityProvider } from '@/features/security/security-provider';
+import { Sentry } from '@/features/telemetry/sentry';
 import { DatabaseProvider } from '@/providers/database-provider';
 import { QueryProvider } from '@/providers/query-provider';
 import { ModelDownloadProvider } from '@/features/models/model-download-provider';
 import { SummarizeProvider } from '@/features/summarize/summarize-provider';
 import { TranscriptionProvider } from '@/features/transcription/transcription-provider';
 
-export default function RootLayout() {
+function RootLayout() {
   const colorScheme = useColorScheme();
   const scheme = colorScheme === 'dark' ? 'dark' : 'light';
   const palette = Colors[scheme];
@@ -69,3 +70,5 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+export default Sentry.wrap(RootLayout);

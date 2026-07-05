@@ -3,6 +3,11 @@ import { useCallback } from 'react';
 import type { Note } from '@/db/schema';
 import { useUpdateNote } from '@/features/notes/use-notes';
 import { devLog } from '@/features/telemetry/dev-logger';
+import {
+  captureTranscriptionError,
+  setTranscriptionSpanLanguage,
+  withTranscriptionSpan,
+} from '@/features/telemetry/transcription-tracing';
 
 import { prepareWhisperAudio } from './audio-converter';
 import { runExclusiveTranscription } from './transcription-queue';
@@ -65,35 +70,42 @@ async function transcribeNoteInternal(
   let cleanupConvertedAudio: () => void = () => {};
 
   try {
-    const { wavUri, cleanup } = await prepareWhisperAudio(note.audioUri, note.id);
-    cleanupConvertedAudio = cleanup;
+    await withTranscriptionSpan(
+      { noteId: note.id, audioDurationMs: note.durationMs },
+      async () => {
+        const { wavUri, cleanup } = await prepareWhisperAudio(note.audioUri, note.id);
+        cleanupConvertedAudio = cleanup;
 
-    const context = await getWhisperContext();
-    const { promise } = context.transcribe(wavUri, {
-      language: 'auto',
-      maxThreads: 4,
-      onProgress: (progress: number) => {
-        setNoteProgress(note.id, progress);
+        const context = await getWhisperContext();
+        const { promise } = context.transcribe(wavUri, {
+          language: 'auto',
+          maxThreads: 4,
+          onProgress: (progress: number) => {
+            setNoteProgress(note.id, progress);
+          },
+        });
+
+        const { result, language } = await promise;
+        const transcript = result.trim();
+        setTranscriptionSpanLanguage(language);
+        devLog.info('transcription', `Transcription complete for note ${note.id}`, {
+          language,
+          transcriptLength: transcript.length,
+        });
+
+        await updateNote.mutateAsync({
+          id: note.id,
+          updates: {
+            transcript,
+            detectedLanguage: language || null,
+            status: 'summarizing',
+          },
+        });
       },
-    });
-
-    const { result, language } = await promise;
-    const transcript = result.trim();
-    devLog.info('transcription', `Transcription complete for note ${note.id}`, {
-      language,
-      transcriptLength: transcript.length,
-    });
-
-    await updateNote.mutateAsync({
-      id: note.id,
-      updates: {
-        transcript,
-        detectedLanguage: language || null,
-        status: 'summarizing',
-      },
-    });
+    );
   } catch (error) {
     const message = getErrorMessage(error);
+    captureTranscriptionError(error, note.id);
     devLog.error('transcription', `Transcription failed for note ${note.id}`, error);
     await updateNote.mutateAsync({
       id: note.id,
