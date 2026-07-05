@@ -84,6 +84,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     'expo-notifications',
+    'expo-secure-store',
+    'expo-sharing',
     '@sentry/react-native/expo',
     './plugins/with-model-download-service.js',
     './plugins/with-prebuilt-react-native.js',

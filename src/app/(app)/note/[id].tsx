@@ -3,7 +3,9 @@ import { SymbolView } from 'expo-symbols';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { LanguageBadge } from '@/components/notes/language-badge';
 import { NotePlayback } from '@/components/notes/note-playback';
+import { NoteStatusBadge } from '@/components/notes/note-status-badge';
 import { SummaryView } from '@/components/notes/summary-view';
 import { TagList } from '@/components/notes/tag-list';
 import { TaskList } from '@/components/notes/task-list';
@@ -13,11 +15,10 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { confirmDeleteNote } from '@/features/notes/confirm-delete-note';
+import { useExportNote } from '@/features/notes/use-export-notes';
 import { useDeleteNote, useNote, useNoteTasks, useToggleTaskDone } from '@/features/notes/use-notes';
 import { parseTagsJson } from '@/features/summarize/format-summary';
-import {
-  useNoteSummarizeTokenCount,
-} from '@/features/summarize/summarize-store';
+import { useNoteSummarizeTokenCount } from '@/features/summarize/summarize-store';
 import { useSummarizeModelProgress } from '@/features/models/model-download-store';
 import { useSummarize } from '@/features/summarize/use-summarize';
 import { formatDetectedLanguage } from '@/features/transcription/format-language';
@@ -31,7 +32,7 @@ function getStatusDetail(
   summarizeTokens: number | null,
   modelStatus: string,
   downloadProgress: number,
-): string {
+): string | null {
   if (status === 'transcribing' && transcriptionProgress != null) {
     return ` (${transcriptionProgress}%)`;
   }
@@ -46,7 +47,24 @@ function getStatusDetail(
     }
   }
 
-  return '';
+  return null;
+}
+
+function formatNoteDate(epochMs: number): string {
+  return new Date(epochMs).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function formatDuration(durationMs: number): string {
+  const totalSeconds = Math.floor(durationMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
 export default function NoteDetailScreen() {
@@ -58,6 +76,7 @@ export default function NoteDetailScreen() {
   const { data: tasks = [] } = useNoteTasks(id);
   const deleteNote = useDeleteNote();
   const toggleTaskDone = useToggleTaskDone(id ?? '');
+  const { exportNote, isExporting } = useExportNote();
   const { retryTranscription } = useTranscribe();
   const { retrySummarization } = useSummarize();
   const progress = useNoteTranscriptionProgress(id);
@@ -88,6 +107,11 @@ export default function NoteDetailScreen() {
       await deleteNote.mutateAsync(id);
       router.back();
     });
+  };
+
+  const handleExport = () => {
+    if (!note) return;
+    exportNote(note, tasks);
   };
 
   const transcriptBody = (() => {
@@ -122,6 +146,16 @@ export default function NoteDetailScreen() {
     return 'No transcript yet.';
   })();
 
+  const statusDetail = note
+    ? getStatusDetail(
+        note.status,
+        progress,
+        summarizeTokens,
+        modelStatus,
+        downloadProgress,
+      )
+    : null;
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView edges={['top']} style={styles.safeArea}>
@@ -145,82 +179,122 @@ export default function NoteDetailScreen() {
                   tintColor={theme.tint}
                 />
               </Pressable>
-              <ThemedText type="title">Note</ThemedText>
+              <ThemedText numberOfLines={1} style={styles.headerTitle} type="title">
+                {note?.title ?? 'Note'}
+              </ThemedText>
             </View>
             {note ? (
-              <Pressable
-                accessibilityLabel="Delete note"
-                accessibilityRole="button"
-                disabled={deleteNote.isPending}
-                hitSlop={8}
-                onPress={handleDelete}
-                style={({ pressed }) => [styles.iconButton, { opacity: pressed || deleteNote.isPending ? 0.6 : 1 }]}>
-                {deleteNote.isPending ? (
-                  <ActivityIndicator color={theme.error} size="small" />
-                ) : (
-                  <SymbolView
-                    name={{ ios: 'trash', android: 'delete', web: 'delete' }}
-                    size={22}
-                    tintColor={theme.error}
-                  />
-                )}
-              </Pressable>
+              <View style={styles.headerActions}>
+                {note.status === 'ready' ? (
+                  <Pressable
+                    accessibilityLabel="Export note"
+                    accessibilityRole="button"
+                    disabled={isExporting}
+                    hitSlop={8}
+                    onPress={handleExport}
+                    style={({ pressed }) => [
+                      styles.iconButton,
+                      { opacity: pressed || isExporting ? 0.6 : 1 },
+                    ]}>
+                    {isExporting ? (
+                      <ActivityIndicator color={theme.tint} size="small" />
+                    ) : (
+                      <SymbolView
+                        name={{ ios: 'square.and.arrow.up', android: 'share', web: 'share' }}
+                        size={22}
+                        tintColor={theme.tint}
+                      />
+                    )}
+                  </Pressable>
+                ) : null}
+                <Pressable
+                  accessibilityLabel="Delete note"
+                  accessibilityRole="button"
+                  disabled={deleteNote.isPending}
+                  hitSlop={8}
+                  onPress={handleDelete}
+                  style={({ pressed }) => [
+                    styles.iconButton,
+                    { opacity: pressed || deleteNote.isPending ? 0.6 : 1 },
+                  ]}>
+                  {deleteNote.isPending ? (
+                    <ActivityIndicator color={theme.error} size="small" />
+                  ) : (
+                    <SymbolView
+                      name={{ ios: 'trash', android: 'delete', web: 'delete' }}
+                      size={22}
+                      tintColor={theme.error}
+                    />
+                  )}
+                </Pressable>
+              </View>
             ) : null}
           </View>
 
           {isLoading ? (
-          <View style={styles.loading}>
-            <ActivityIndicator />
-          </View>
-        ) : note ? (
-          <Card style={styles.card}>
-            <ThemedText type="subtitle">{note.title}</ThemedText>
-            <ThemedText themeColor="textSecondary" type="small">
-              Status: {note.status}
-              {getStatusDetail(
-                note.status,
-                progress,
-                summarizeTokens,
-                modelStatus,
-                downloadProgress,
-              )}
-            </ThemedText>
-            {languageLabel ? (
-              <ThemedText themeColor="textSecondary" type="small">
-                Transcribed in {languageLabel}
+            <View style={styles.loading}>
+              <ActivityIndicator />
+            </View>
+          ) : note ? (
+            <View style={styles.content}>
+              <Card style={styles.heroCard}>
+                <ThemedText type="subtitle">{note.title}</ThemedText>
+                <View style={styles.metaRow}>
+                  <NoteStatusBadge detail={statusDetail} status={note.status} />
+                  {languageLabel ? <LanguageBadge label={languageLabel} /> : null}
+                </View>
+                <ThemedText themeColor="textSecondary" type="small">
+                  {formatNoteDate(note.createdAt)} · {formatDuration(note.durationMs)}
+                </ThemedText>
+                <NotePlayback audioUri={note.audioUri} durationMs={note.durationMs} />
+              </Card>
+
+              <Card style={styles.sectionCard}>
+                <ThemedText type="subtitle">Transcript</ThemedText>
+                <ThemedText style={styles.body}>{transcriptBody}</ThemedText>
+              </Card>
+
+              {note.summary && note.status === 'ready' ? (
+                <Card style={styles.sectionCard}>
+                  <SummaryView summary={note.summary} />
+                </Card>
+              ) : null}
+
+              {note.status === 'ready' && tasks.length > 0 ? (
+                <Card style={styles.sectionCard}>
+                  <TaskList
+                    onToggleTask={(taskId, done) => toggleTaskDone.mutate({ taskId, done })}
+                    tasks={tasks}
+                  />
+                </Card>
+              ) : null}
+
+              {note.status === 'ready' && tags.length > 0 ? (
+                <Card style={styles.sectionCard}>
+                  <TagList tags={tags} />
+                </Card>
+              ) : null}
+
+              {note.status === 'error' ? (
+                <Card style={styles.sectionCard}>
+                  <View style={styles.actions}>
+                    {!note.transcript.trim() ? (
+                      <Button label="Retry Transcription" onPress={handleRetryTranscription} />
+                    ) : (
+                      <Button label="Retry Summarization" onPress={handleRetrySummarization} />
+                    )}
+                  </View>
+                </Card>
+              ) : null}
+            </View>
+          ) : (
+            <Card>
+              <ThemedText type="subtitle">Note not found</ThemedText>
+              <ThemedText style={styles.body} themeColor="textSecondary">
+                This note may have been deleted.
               </ThemedText>
-            ) : null}
-            <NotePlayback audioUri={note.audioUri} durationMs={note.durationMs} />
-            <ThemedText style={styles.sectionLabel} type="subtitle">
-              Transcript
-            </ThemedText>
-            <ThemedText style={styles.body}>{transcriptBody}</ThemedText>
-            {note.summary && note.status === 'ready' ? <SummaryView summary={note.summary} /> : null}
-            {note.status === 'ready' ? (
-              <TaskList
-                onToggleTask={(taskId, done) => toggleTaskDone.mutate({ taskId, done })}
-                tasks={tasks}
-              />
-            ) : null}
-            {note.status === 'ready' ? <TagList tags={tags} /> : null}
-            {note.status === 'error' ? (
-              <View style={styles.actions}>
-                {!note.transcript.trim() ? (
-                  <Button label="Retry Transcription" onPress={handleRetryTranscription} />
-                ) : (
-                  <Button label="Retry Summarization" onPress={handleRetrySummarization} />
-                )}
-              </View>
-            ) : null}
-          </Card>
-        ) : (
-          <Card>
-            <ThemedText type="subtitle">Note not found</ThemedText>
-            <ThemedText style={styles.body} themeColor="textSecondary">
-              This note may have been deleted.
-            </ThemedText>
-          </Card>
-        )}
+            </Card>
+          )}
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -247,12 +321,21 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: Spacing.md,
     paddingBottom: Spacing.lg,
+    gap: Spacing.sm,
   },
   headerStart: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
     flex: 1,
+  },
+  headerTitle: {
+    flex: 1,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
   },
   iconButton: {
     padding: Spacing.xs,
@@ -262,17 +345,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  card: {
+  content: {
+    gap: Spacing.md,
+  },
+  heroCard: {
     gap: Spacing.sm,
   },
-  sectionLabel: {
-    marginTop: Spacing.md,
+  metaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  sectionCard: {
+    gap: Spacing.sm,
   },
   body: {
-    marginTop: Spacing.xs,
+    lineHeight: 24,
   },
   actions: {
     gap: Spacing.sm,
-    marginTop: Spacing.md,
   },
 });

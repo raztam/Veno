@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, View } from 'react-native';
+import { SymbolView } from 'expo-symbols';
 
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
@@ -34,11 +35,18 @@ export function TaskList({ tasks, onToggleTask }: TaskListProps) {
               style={[
                 styles.checkbox,
                 {
-                  borderColor: theme.border,
+                  borderColor: isDone ? theme.tint : theme.border,
                   backgroundColor: isDone ? theme.tint : 'transparent',
                 },
-              ]}
-            />
+              ]}>
+              {isDone ? (
+                <SymbolView
+                  name={{ ios: 'checkmark', android: 'check', web: 'check' }}
+                  size={12}
+                  tintColor={theme.background}
+                />
+              ) : null}
+            </View>
             <ThemedText
               style={[styles.taskText, isDone && styles.taskTextDone]}
               themeColor={isDone ? 'textSecondary' : 'text'}>
@@ -62,11 +70,13 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 6,
     borderWidth: 1.5,
-    marginTop: 2,
+    marginTop: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   taskText: {
     flex: 1,

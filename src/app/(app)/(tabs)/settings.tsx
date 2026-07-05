@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { type Href, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -14,7 +14,10 @@ import { formatAllowance } from '@/features/entitlements/gating';
 import { isPurchasesSupported } from '@/features/entitlements/purchases-client';
 import { useRestorePurchases } from '@/features/entitlements/use-pro-plan';
 import { useRecordingAllowance } from '@/features/entitlements/use-usage';
+import { useExportAllNotes } from '@/features/notes/use-export-notes';
+import { useBiometricCapability } from '@/features/security/use-biometric-capability';
 import { useSuppressVaultLockWhile } from '@/features/security/use-vault-lock-suppression';
+import { useVaultLockPreference } from '@/features/security/use-vault-lock-preference';
 import {
   downloadWhisperModelInBackground,
   isWhisperModelDownloadInProgress,
@@ -24,8 +27,6 @@ import {
   requestSummarizeModelDownload,
 } from '@/features/models/background-summarize-download';
 import { useModelDownloadStore, useSummarizeModelProgress } from '@/features/models/model-download-store';
-import { createTestNoteInput } from '@/features/notes/repository';
-import { useCreateNote, useNotes } from '@/features/notes/use-notes';
 import {
   SUMMARIZE_MODEL_LABEL,
   SUMMARIZE_MODEL_SIZE_HINT,
@@ -36,19 +37,22 @@ import { WHISPER_MODEL_LABEL } from '@/features/transcription/constants';
 import { isWhisperModelDownloaded } from '@/features/transcription/model-storage';
 import { useTranscriptionStore } from '@/features/transcription/transcription-store';
 import { isWhisperSupported } from '@/features/transcription/whisper-service';
+import { useTheme } from '@/hooks/use-theme';
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { data: notes } = useNotes();
-  const createNote = useCreateNote();
   const isPro = useIsPro();
   const { remainingMs } = useRecordingAllowance();
   const restorePurchases = useRestorePurchases();
+  const { exportAllNotes, isExporting } = useExportAllNotes();
+  const { vaultLockEnabled, isUpdating, toggleVaultLock } = useVaultLockPreference();
+  const { isAvailable: biometricsAvailable, guidance: biometricGuidance } = useBiometricCapability();
   const [restoreMessage, setRestoreMessage] = useState<string | null>(null);
 
   // Store sign-in sheets background the app — avoid relocking mid-restore.
-  useSuppressVaultLockWhile(restorePurchases.isPending);
+  useSuppressVaultLockWhile(restorePurchases.isPending || isUpdating);
   const transcriptionModelStatus = useTranscriptionStore((state) => state.modelStatus);
   const transcriptionModelProgress = useTranscriptionStore((state) => state.modelProgress);
   const whisperDownloadStatus = useModelDownloadStore((state) => state.whisperStatus);
@@ -154,6 +158,13 @@ export default function SettingsScreen() {
     });
   }, [restorePurchases]);
 
+  const handleVaultLockToggle = useCallback(
+    (nextValue: boolean) => {
+      void toggleVaultLock(nextValue);
+    },
+    [toggleVaultLock],
+  );
+
   const showWhisperDownloadButton = isWhisperSupported() && !whisperReady && !isWhisperDownloading;
   const showSummarizeDownloadButton =
     isSummarizeSupported() && !summarizeReady && !isSummarizeDownloading;
@@ -172,90 +183,98 @@ export default function SettingsScreen() {
           </ThemedText>
 
           <Card style={styles.section}>
-          <ThemedText type="subtitle">Vault</ThemedText>
-          <ThemedText themeColor="textSecondary">
-            Your notes and recordings stay on this device, protected by biometric lock.
-          </ThemedText>
-        </Card>
-
-        <Card style={styles.section}>
-          <ThemedText type="subtitle">Transcription</ThemedText>
-          <ThemedText themeColor="textSecondary">{whisperStatusLabel}</ThemedText>
-          {showWhisperDownloadButton ? (
-            <View style={styles.actions}>
-              <Button
-                label="Download voice model"
-                onPress={handleDownloadWhisperModel}
-                variant="secondary"
+            <View style={styles.toggleRow}>
+              <View style={styles.toggleCopy}>
+                <ThemedText type="subtitle">Require biometric lock</ThemedText>
+                <ThemedText themeColor="textSecondary">
+                  {vaultLockEnabled
+                    ? 'Face ID, Touch ID, or your device passcode is required to open Veno.'
+                    : 'The app opens directly to your notes without an unlock screen.'}
+                </ThemedText>
+                {biometricGuidance ? (
+                  <ThemedText themeColor="textSecondary" type="small">
+                    {biometricGuidance}
+                  </ThemedText>
+                ) : null}
+              </View>
+              <Switch
+                accessibilityLabel="Require biometric lock"
+                disabled={!biometricsAvailable || isUpdating}
+                onValueChange={handleVaultLockToggle}
+                thumbColor={theme.background}
+                trackColor={{ false: theme.border, true: theme.tint }}
+                value={vaultLockEnabled}
               />
             </View>
-          ) : null}
-        </Card>
+          </Card>
 
-        <Card style={styles.section}>
-          <ThemedText type="subtitle">Summarization</ThemedText>
-          <ThemedText themeColor="textSecondary">{summarizeStatusLabel}</ThemedText>
-          {showSummarizeDownloadButton ? (
-            <View style={styles.actions}>
-              <Button
-                label="Download summary model"
-                onPress={handleDownloadSummarizeModel}
-                variant="secondary"
-              />
-            </View>
-          ) : null}
-        </Card>
+          <Card style={styles.section}>
+            <ThemedText type="subtitle">Transcription</ThemedText>
+            <ThemedText themeColor="textSecondary">{whisperStatusLabel}</ThemedText>
+            {showWhisperDownloadButton ? (
+              <View style={styles.actions}>
+                <Button
+                  label="Download voice model"
+                  onPress={handleDownloadWhisperModel}
+                  variant="secondary"
+                />
+              </View>
+            ) : null}
+          </Card>
 
-        <Card style={styles.section}>
-          <ThemedText type="subtitle">Developer</ThemedText>
-          <ThemedText themeColor="textSecondary">
-            {notes?.length ?? 0} note{notes?.length === 1 ? '' : 's'} stored locally.
-          </ThemedText>
-          <View style={styles.actions}>
-            <Button
-              label="View Debug Logs"
-              onPress={() => router.push('/(app)/dev-logs' as Href)}
-              variant="secondary"
-            />
-            <Button
-              label="Add Test Note"
-              loading={createNote.isPending}
-              onPress={() => createNote.mutate(createTestNoteInput())}
-              variant="secondary"
-            />
-          </View>
-        </Card>
+          <Card style={styles.section}>
+            <ThemedText type="subtitle">Summarization</ThemedText>
+            <ThemedText themeColor="textSecondary">{summarizeStatusLabel}</ThemedText>
+            {showSummarizeDownloadButton ? (
+              <View style={styles.actions}>
+                <Button
+                  label="Download summary model"
+                  onPress={handleDownloadSummarizeModel}
+                  variant="secondary"
+                />
+              </View>
+            ) : null}
+          </Card>
 
-        <Card style={styles.section}>
-          <ThemedText type="subtitle">Pro</ThemedText>
-          <ThemedText themeColor="textSecondary">{proStatusLabel}</ThemedText>
-          {!isPro ? (
-            <View style={styles.actions}>
-              <Button
-                label="Upgrade to Pro"
-                onPress={() => router.push('/(app)/plan' as Href)}
-              />
-              <Button
-                label="Restore purchases"
-                loading={restorePurchases.isPending}
-                onPress={handleRestorePurchases}
-                variant="secondary"
-              />
-            </View>
-          ) : null}
-          {restoreMessage ? (
-            <ThemedText themeColor="textSecondary" type="small">
-              {restoreMessage}
+          <Card style={styles.section}>
+            <ThemedText type="subtitle">Pro</ThemedText>
+            <ThemedText themeColor="textSecondary">{proStatusLabel}</ThemedText>
+            {!isPro ? (
+              <View style={styles.actions}>
+                <Button
+                  label="Upgrade to Pro"
+                  onPress={() => router.push('/(app)/plan' as Href)}
+                />
+                <Button
+                  label="Restore purchases"
+                  loading={restorePurchases.isPending}
+                  onPress={handleRestorePurchases}
+                  variant="secondary"
+                />
+              </View>
+            ) : (
+              <View style={styles.actions}>
+                <Button
+                  label="Export all notes"
+                  loading={isExporting}
+                  onPress={exportAllNotes}
+                  variant="secondary"
+                />
+              </View>
+            )}
+            {restoreMessage ? (
+              <ThemedText themeColor="textSecondary" type="small">
+                {restoreMessage}
+              </ThemedText>
+            ) : null}
+          </Card>
+
+          <Card style={styles.section}>
+            <ThemedText type="subtitle">About</ThemedText>
+            <ThemedText themeColor="textSecondary">
+              Veno — Speak it. We&apos;ll write it down, summarize it, and pull out your tasks.
             </ThemedText>
-          ) : null}
-        </Card>
-
-        <Card style={styles.section}>
-          <ThemedText type="subtitle">About</ThemedText>
-          <ThemedText themeColor="textSecondary">
-            Veno — Speak it. We&apos;ll write it down, summarize it, and pull out your tasks.
-          </ThemedText>
-        </Card>
+          </Card>
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -282,6 +301,15 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: Spacing.sm,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.md,
+  },
+  toggleCopy: {
+    flex: 1,
+    gap: Spacing.xs,
   },
   actions: {
     marginTop: Spacing.xs,

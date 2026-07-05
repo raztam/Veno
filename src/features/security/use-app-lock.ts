@@ -7,10 +7,15 @@ const BACKGROUND_LOCK_DELAY_MS = 750;
 
 export function useAppLock() {
   const lock = useSecurityStore((state) => state.lock);
+  const vaultLockEnabled = useSecurityStore((state) => state.vaultLockEnabled);
   const appState = useRef(AppState.currentState);
   const lockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    if (vaultLockEnabled === false) {
+      return;
+    }
+
     const clearLockTimer = () => {
       if (lockTimer.current) {
         clearTimeout(lockTimer.current);
@@ -43,5 +48,5 @@ export function useAppLock() {
       clearLockTimer();
       subscription.remove();
     };
-  }, [lock]);
+  }, [lock, vaultLockEnabled]);
 }

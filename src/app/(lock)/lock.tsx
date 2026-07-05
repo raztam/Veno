@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import type { AuthFailureReason } from '@/features/security/authenticate';
+import { useSecurityStore } from '@/features/security/security-store';
 import { useSecurity } from '@/features/security/use-security';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -31,9 +32,15 @@ export default function LockScreen() {
   const router = useRouter();
   const theme = useTheme();
   const { authenticate, isAuthenticating } = useSecurity();
+  const vaultLockEnabled = useSecurityStore((state) => state.vaultLockEnabled);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const attemptUnlock = useCallback(async () => {
+    if (vaultLockEnabled === false) {
+      router.replace('/(app)/(tabs)');
+      return;
+    }
+
     setErrorMessage(null);
     const result = await authenticate();
 
@@ -43,12 +50,17 @@ export default function LockScreen() {
     }
 
     setErrorMessage(getFailureMessage(result.reason));
-  }, [authenticate, router]);
+  }, [authenticate, router, vaultLockEnabled]);
 
   useFocusEffect(
     useCallback(() => {
+      if (vaultLockEnabled === false) {
+        router.replace('/(app)/(tabs)');
+        return;
+      }
+
       void attemptUnlock();
-    }, [attemptUnlock]),
+    }, [attemptUnlock, router, vaultLockEnabled]),
   );
 
   return (

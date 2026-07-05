@@ -13,7 +13,10 @@ export type AuthResult =
   | { success: true }
   | { success: false; reason: AuthFailureReason };
 
-export async function authenticateUser(): Promise<AuthResult> {
+export async function authenticateUser(options?: {
+  promptMessage?: string;
+  promptSubtitle?: string;
+}): Promise<AuthResult> {
   if (Platform.OS === 'web') {
     return { success: true };
   }
@@ -38,8 +41,8 @@ export async function authenticateUser(): Promise<AuthResult> {
   }
 
   const result = await LocalAuthentication.authenticateAsync({
-    promptMessage: 'Unlock Veno',
-    promptSubtitle: 'Verify your identity to access your notes',
+    promptMessage: options?.promptMessage ?? 'Unlock Veno',
+    promptSubtitle: options?.promptSubtitle ?? 'Verify your identity to access your notes',
     cancelLabel: 'Cancel',
     disableDeviceFallback: false,
   });

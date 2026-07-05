@@ -12,7 +12,7 @@ A premium, local-first AI voice-notes app. Records audio, transcribes it **on-de
 
 ### Core flows
 
-- **Biometric Unlock:** Launching the app triggers an immediate Face ID, Touch ID, or Device PIN/Pattern verification check via `expo-local-authentication`.
+- **Biometric Unlock:** Launching the app triggers an immediate Face ID, Touch ID, or Device PIN/Pattern verification check via `expo-local-authentication`. Users can disable vault lock in Settings; when off, the app opens without authentication but data stays local on the device.
 - **Record:** Tap record → speak → tap stop (or auto-stop when the daily allowance is reached). Audio is captured natively via `expo-audio`. Free-tier users see remaining recording time and are **stopped automatically** before exceeding their daily cap — never allowed to finish a clip and then be told it was too long.
 - **Transcribe:** App runs [whisper.rn](https://www.npmjs.com/package/whisper.rn) locally against the saved audio file. Language is auto-detected (`language: 'auto'`) with support for all Whisper multilingual model languages; the detected ISO code is persisted on the note.
 - **Analyze:** App runs a local LLM via **ExecuTorch** (`react-native-executorch`) to produce a title, a summary (as many bullet points as the model deems useful), a tasks checklist, and contextual tags. The model is prompted for strict JSON; output is parsed and validated with Zod before persisting.
@@ -31,20 +31,20 @@ Real-time multi-device sync, live collaboration, custom user account registratio
 
 ## 2. Tech stack
 
-| Layer               | Choice                                                   | Notes                                                                                                                |
-| :------------------ | :------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------- |
-| **App framework**   | Expo SDK 56 + Expo Router                                | File-based routing, typed routes. Requires a **development build** (prebuild) — not compatible with Expo Go.         |
-| **Language**        | TypeScript, React 19, RN 0.85                            | Modern React Native core architecture. **New Architecture required** for ExecuTorch.                                 |
-| **Local Security**  | `expo-local-authentication`                              | Replaces cloud auth. Handles native biometric / OS fallback lock.                                                    |
-| **Audio recording** | `expo-audio`                                             | High-fidelity recording layer replacing deprecated `expo-av`.                                                        |
-| **Transcription**   | [`whisper.rn`](https://www.npmjs.com/package/whisper.rn) | On-device Whisper via whisper.cpp. Multilingual model + `language: 'auto'` for detection. No network call.           |
+| Layer               | Choice                                                                                              | Notes                                                                                                                                                               |
+| :------------------ | :-------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **App framework**   | Expo SDK 56 + Expo Router                                                                           | File-based routing, typed routes. Requires a **development build** (prebuild) — not compatible with Expo Go.                                                        |
+| **Language**        | TypeScript, React 19, RN 0.85                                                                       | Modern React Native core architecture. **New Architecture required** for ExecuTorch.                                                                                |
+| **Local Security**  | `expo-local-authentication`                                                                         | Replaces cloud auth. Handles native biometric / OS fallback lock.                                                                                                   |
+| **Audio recording** | `expo-audio`                                                                                        | High-fidelity recording layer replacing deprecated `expo-av`.                                                                                                       |
+| **Transcription**   | [`whisper.rn`](https://www.npmjs.com/package/whisper.rn)                                            | On-device Whisper via whisper.cpp. Multilingual model + `language: 'auto'` for detection. No network call.                                                          |
 | **LLM Engine**      | **ExecuTorch** via [`react-native-executorch`](https://docs.swmansion.com/react-native-executorch/) | On-device LLM inference. Pre-exported `.pte` models from the library's Hugging Face catalog (e.g. LFM2.5, Llama 3.2, Phi). Prompted JSON output validated with Zod. |
-| **Local DB**        | `expo-sqlite` + Drizzle ORM                              | Typed relational local queries and migration execution.                                                              |
-| **Object storage**  | `expo-file-system`                                       | Audio blobs and downloaded model binaries saved inside the application sandbox.                                      |
-| **Paywall**         | RevenueCat (`react-native-purchases`)                    | Entitlement validation + stable **App User ID** that anchors cloud backup identity across reinstalls.                |
-| **Cloud backup**    | iCloud (iOS) / Google Drive app data (Android)           | Encrypted vault snapshots keyed by RC App User ID. Pro-only. No custom backend.                                      |
-| **Observability**   | Sentry (`@sentry/react-native`)                          | Client performance traces and runtime error catching.                                                                |
-| **Styling / State** | StyleSheet.create / Zustand & React Query                | High performance native layout engine, asynchronous and synchronous state.                                           |
+| **Local DB**        | `expo-sqlite` + Drizzle ORM                                                                         | Typed relational local queries and migration execution.                                                                                                             |
+| **Object storage**  | `expo-file-system`                                                                                  | Audio blobs and downloaded model binaries saved inside the application sandbox.                                                                                     |
+| **Paywall**         | RevenueCat (`react-native-purchases`)                                                               | Entitlement validation + stable **App User ID** that anchors cloud backup identity across reinstalls.                                                               |
+| **Cloud backup**    | iCloud (iOS) / Google Drive app data (Android)                                                      | Encrypted vault snapshots keyed by RC App User ID. Pro-only. No custom backend.                                                                                     |
+| **Observability**   | Sentry (`@sentry/react-native`)                                                                     | Client performance traces and runtime error catching.                                                                                                               |
+| **Styling / State** | StyleSheet.create / Zustand & React Query                                                           | High performance native layout engine, asynchronous and synchronous state.                                                                                          |
 
 ### Configuration & secrets
 
@@ -53,10 +53,10 @@ All keys live in a top-level, gitignored `.env` file.
 - **Public, client-side keys (`EXPO_PUBLIC_*`):** Inlined into the JS bundle at build time. Used for client-facing public SDK initializations (RevenueCat, Sentry).
 - **No AI provider secrets:** LLM and transcription models run locally — there is no `OPENAI_API_KEY` or server proxy.
 
-| Var                                               | Used by              | Where it runs |
-| :------------------------------------------------ | :------------------- | :------------ |
-| `EXPO_PUBLIC_REVENUECAT_IOS_KEY` / `_ANDROID_KEY` | RevenueCat (Stage 7) | Client        |
-| `EXPO_PUBLIC_SENTRY_DSN`                          | Sentry (Stage 8)     | Client        |
+| Var                                               | Used by              | Where it runs   |
+| :------------------------------------------------ | :------------------- | :-------------- |
+| `EXPO_PUBLIC_REVENUECAT_IOS_KEY` / `_ANDROID_KEY` | RevenueCat (Stage 7) | Client          |
+| `EXPO_PUBLIC_SENTRY_DSN`                          | Sentry (Stage 8)     | Client          |
 | `SENTRY_AUTH_TOKEN`                               | Source-map upload    | Build-time only |
 
 ---
@@ -72,7 +72,7 @@ src/
       _layout.tsx            # tab bar layout + security gating hook
       index.tsx              # Notes list
       record.tsx             # Record screen (modal-style)
-      settings.tsx           # Reset vault, developer tools, pro settings
+      settings.tsx           # Vault lock toggle, model status, Pro, About (backup in Stage 10)
       plan.tsx               # Free vs Pro comparison, pricing, upgrade CTA → native store
       note/[id].tsx          # Note detail screen
     _layout.tsx              # Providers, Sentry Init, React Query, initExecutorch
@@ -172,6 +172,7 @@ Each stage represents a standalone shippable, executable target unit.
 - Construct a standalone route `(lock)/lock.tsx` blocking the device screen.
 - Implement a security context hook inside `src/features/security/` monitoring app lifecycle conditions (Active vs Background).
 - When entering or returning to the application layout, invoke `authenticateAsync()`. Upon confirmation, navigate directly into the active tabs array. If verification fails, stall UX within the lock array.
+- User-facing enable/disable of vault lock is specified in **Stage 9**; Stage 2 implements the lock when the preference is on.
 - **Done when:** Force closing or changing to another app and returning back requires a fingerprint or device passcode scan to reveal the underlying note elements.
 
 ### Stage 3 — Local DB & notes CRUD
@@ -298,7 +299,10 @@ Generate a clear title, a concise multi-bullet summary, actionable checklist ite
 Transcript:
 ${transcript}`;
 
-await llm.generate([{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: prompt }]);
+await llm.generate([
+  { role: "system", content: SYSTEM_PROMPT },
+  { role: "user", content: prompt },
+]);
 
 // Extract JSON from llm.response (strip accidental fences), then validate
 const parsed = NoteSummarySchema.parse(JSON.parse(extractJson(llm.response)));
@@ -321,12 +325,12 @@ const parsed = NoteSummarySchema.parse(JSON.parse(extractJson(llm.response)));
 
 The 2-week Pro trial is **not** a local timer in SQLite or `TIER_LIMITS`. It is an **introductory offer on the subscription product** configured in each store, then linked in RevenueCat:
 
-| Layer | Responsibility |
-| :---- | :------------- |
-| **App Store Connect** (iOS) | Set **14-day free trial** on `pro_monthly` under Subscription → Introductory Offers. |
-| **Google Play Console** (Android) | Set matching **14-day free trial** on the same subscription base plan. |
-| **RevenueCat** | Attach the store products to the `pro` entitlement / offering. RC reads trial metadata from the stores and grants the entitlement for the trial period — no custom trial duration in the RC dashboard. |
-| **App code** | **Display only + gating:** read `package.product.introPrice` / eligibility from offerings to show *"Start 14-day free trial, then {price}/mo"*; call `Purchases.purchasePackage()`; treat an active trial the same as paid Pro (`entitlements.pro.isActive` → unlimited recording, backup, etc.). **Do not** implement a parallel 14-day countdown in the app. |
+| Layer                             | Responsibility                                                                                                                                                                                                                                                                                                                                                 |
+| :-------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **App Store Connect** (iOS)       | Set **14-day free trial** on `pro_monthly` under Subscription → Introductory Offers.                                                                                                                                                                                                                                                                           |
+| **Google Play Console** (Android) | Set matching **14-day free trial** on the same subscription base plan.                                                                                                                                                                                                                                                                                         |
+| **RevenueCat**                    | Attach the store products to the `pro` entitlement / offering. RC reads trial metadata from the stores and grants the entitlement for the trial period — no custom trial duration in the RC dashboard.                                                                                                                                                         |
+| **App code**                      | **Display only + gating:** read `package.product.introPrice` / eligibility from offerings to show _"Start 14-day free trial, then {price}/mo"_; call `Purchases.purchasePackage()`; treat an active trial the same as paid Pro (`entitlements.pro.isActive` → unlimited recording, backup, etc.). **Do not** implement a parallel 14-day countdown in the app. |
 
 - Trial eligibility (one per Apple ID / Google account) is enforced by the **stores**, not by us.
 - If the user cancels during the trial, access continues until trial end; billing rules follow store policy.
@@ -340,11 +344,11 @@ All free-tier caps live in one exported config object — gating code reads from
 ```typescript
 export const TIER_LIMITS = {
   free: {
-    recordMinutesPerDay: 5,       // total recording time allowed per calendar day
-    smartAnalysisPerDay: null,    // null = unlimited (transcription + summarize pipeline)
+    recordMinutesPerDay: 5, // total recording time allowed per calendar day
+    smartAnalysisPerDay: null, // null = unlimited (transcription + summarize pipeline)
   },
   pro: {
-    recordMinutesPerDay: null,    // null = unlimited
+    recordMinutesPerDay: null, // null = unlimited
     smartAnalysisPerDay: null,
   },
 } as const;
@@ -399,11 +403,31 @@ export const TIER_LIMITS = {
 - Tag local transcription spans with Whisper model name, audio duration, and detected language.
 - Tag local summarization spans with ExecuTorch model id, transcript length, and generation duration.
 
-### Stage 9 — Polish, export, share
+### Stage 9 — Polish, export, share & settings cleanup
 
-- Render beautiful note interfaces: titles, structural checkboxes mapping directly to state adjustments, and markdown block components.
+**Note detail & export**
+
+- Render polished note interfaces: titles, structural checkboxes mapping directly to task state, and markdown block components for summaries.
 - Display detected language badge on note detail (e.g. "Transcribed in Hebrew").
-- Build Markdown compilation routines allowing text exports out to local files or native OS sharing utilities.
+- Build Markdown compilation routines allowing text exports to local files or the native OS share sheet (**Pro only**, per §1 Premium Gating).
+- Entry point: share/export action on note detail; optional "Export all notes" in Settings for Pro users.
+
+**Settings — Vault lock toggle**
+
+- Replace the static Vault info card with a **"Require biometric lock"** toggle (default: **on**).
+- Persist preference locally (e.g. `expo-secure-store` or SQLite settings row) in `features/security/`.
+- **When on:** Existing Stage 2 behavior — lock on launch and after backgrounding; `(lock)/lock.tsx` gate remains active.
+- **When off:** Skip `authenticateAsync()` and auto-lock on background; app opens directly into tabs. Notes and recordings remain on-device; only the lock UX is disabled.
+- Turning **off** should require a one-time biometric confirmation (or system passcode) so someone with brief physical access cannot disable protection without verification.
+- If biometrics are unavailable or not enrolled, show an explanatory subtitle and keep the toggle disabled with guidance to enable Face ID / Touch ID in system settings.
+- Update `useAppLock` and the security gate to read the preference before locking or prompting.
+
+**Settings — remove developer tools from production UI**
+
+- Remove the **Developer** section from Settings: note count, "View Debug Logs", and "Add Test Note".
+- Do not surface dev-only routes or actions in the shipped Settings screen.
+
+**Done when:** Note detail is polished with language badge and working Pro export/share; Settings exposes a persisted vault-lock toggle with correct on/off behavior; no developer tools appear on the Settings page in release builds.
 
 ### Stage 10 — Cloud backup & restore (iCloud / Google Drive)
 
