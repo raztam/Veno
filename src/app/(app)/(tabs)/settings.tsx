@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { type Href, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +8,13 @@ import { Card } from '@/components/ui/card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { TIER_LIMITS } from '@/constants/entitlements';
+import { useIsPro } from '@/features/entitlements/entitlements-store';
+import { formatAllowance } from '@/features/entitlements/gating';
+import { isPurchasesSupported } from '@/features/entitlements/purchases-client';
+import { useRestorePurchases } from '@/features/entitlements/use-pro-plan';
+import { useRecordingAllowance } from '@/features/entitlements/use-usage';
+import { useSuppressVaultLockWhile } from '@/features/security/use-vault-lock-suppression';
 import {
   downloadWhisperModelInBackground,
   isWhisperModelDownloadInProgress,
@@ -35,6 +42,13 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { data: notes } = useNotes();
   const createNote = useCreateNote();
+  const isPro = useIsPro();
+  const { remainingMs } = useRecordingAllowance();
+  const restorePurchases = useRestorePurchases();
+  const [restoreMessage, setRestoreMessage] = useState<string | null>(null);
+
+  // Store sign-in sheets background the app — avoid relocking mid-restore.
+  useSuppressVaultLockWhile(restorePurchases.isPending);
   const transcriptionModelStatus = useTranscriptionStore((state) => state.modelStatus);
   const transcriptionModelProgress = useTranscriptionStore((state) => state.modelProgress);
   const whisperDownloadStatus = useModelDownloadStore((state) => state.whisperStatus);
@@ -118,6 +132,28 @@ export default function SettingsScreen() {
     return `${SUMMARIZE_MODEL_LABEL} (${SUMMARIZE_MODEL_SIZE_HINT}) downloads in the background. You can lock your screen or switch apps.`;
   })();
 
+  const proStatusLabel = isPro
+    ? 'Pro is active — unlimited recording, cloud backup, and export. Manage your subscription in your app store account settings.'
+    : `Free tier: ${TIER_LIMITS.free.recordMinutesPerDay} minutes of recording per day with unlimited smart analysis. ${formatAllowance(remainingMs)} left today.`;
+
+  const handleRestorePurchases = useCallback(() => {
+    if (!isPurchasesSupported()) {
+      setRestoreMessage('Purchases require a native iOS or Android build.');
+      return;
+    }
+
+    setRestoreMessage(null);
+    void restorePurchases.mutateAsync().then((outcome) => {
+      if (outcome.status === 'restored') {
+        setRestoreMessage('Pro restored. Welcome back!');
+      } else if (outcome.status === 'not-entitled') {
+        setRestoreMessage('No previous purchases found for this store account.');
+      } else if (outcome.status === 'error') {
+        setRestoreMessage(outcome.message ?? 'Could not restore purchases.');
+      }
+    });
+  }, [restorePurchases]);
+
   const showWhisperDownloadButton = isWhisperSupported() && !whisperReady && !isWhisperDownloading;
   const showSummarizeDownloadButton =
     isSummarizeSupported() && !summarizeReady && !isSummarizeDownloading;
@@ -192,10 +228,26 @@ export default function SettingsScreen() {
 
         <Card style={styles.section}>
           <ThemedText type="subtitle">Pro</ThemedText>
-          <ThemedText themeColor="textSecondary">
-            Unlimited recordings and smart summaries will be available with a Pro subscription in
-            Stage 7.
-          </ThemedText>
+          <ThemedText themeColor="textSecondary">{proStatusLabel}</ThemedText>
+          {!isPro ? (
+            <View style={styles.actions}>
+              <Button
+                label="Upgrade to Pro"
+                onPress={() => router.push('/(app)/plan' as Href)}
+              />
+              <Button
+                label="Restore purchases"
+                loading={restorePurchases.isPending}
+                onPress={handleRestorePurchases}
+                variant="secondary"
+              />
+            </View>
+          ) : null}
+          {restoreMessage ? (
+            <ThemedText themeColor="textSecondary" type="small">
+              {restoreMessage}
+            </ThemedText>
+          ) : null}
         </Card>
 
         <Card style={styles.section}>
@@ -233,5 +285,6 @@ const styles = StyleSheet.create({
   },
   actions: {
     marginTop: Spacing.xs,
+    gap: Spacing.sm,
   },
 });

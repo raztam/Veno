@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
 import type { RecordingPhase } from '@/features/audio/use-recording-session';
+import { formatAllowance } from '@/features/entitlements/gating';
 import { useTheme } from '@/hooks/use-theme';
 
 import { RecordingTimer } from './recording-timer';
@@ -17,12 +18,17 @@ type RecordingCardProps = {
   permissionDenied: boolean;
   permissionBlocked: boolean;
   error: string | null;
+  /** Remaining daily allowance countdown in ms. `null` hides it (Pro). */
+  remainingDailyMs?: number | null;
+  /** Daily cap already used up — block start and point at the paywall. */
+  allowanceExhausted?: boolean;
   onStart: () => void;
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
   onRequestPermission: () => void;
   onOpenSettings: () => void;
+  onSeePlans?: () => void;
 };
 
 export function RecordingCard({
@@ -32,15 +38,20 @@ export function RecordingCard({
   permissionDenied,
   permissionBlocked,
   error,
+  remainingDailyMs = null,
+  allowanceExhausted = false,
   onStart,
   onPause,
   onResume,
   onStop,
   onRequestPermission,
   onOpenSettings,
+  onSeePlans,
 }: RecordingCardProps) {
   const theme = useTheme();
   const isActive = phase === 'recording' || phase === 'paused';
+  const showAllowance = remainingDailyMs !== null && !permissionDenied && !allowanceExhausted;
+  const allowanceLow = remainingDailyMs !== null && remainingDailyMs <= 60_000;
 
   return (
     <Card style={styles.card} variant="filled">
@@ -49,6 +60,15 @@ export function RecordingCard({
       </View>
 
       <RecordingTimer durationMs={durationMs} phase={phase} />
+
+      {showAllowance ? (
+        <ThemedText
+          style={[styles.allowance, allowanceLow && { color: theme.error }]}
+          themeColor="textSecondary"
+          type="smallBold">
+          {formatAllowance(remainingDailyMs)} left today
+        </ThemedText>
+      ) : null}
 
       <RecordingWaveform
         color={phase === 'paused' ? theme.textSecondary : theme.tint}
@@ -60,6 +80,11 @@ export function RecordingCard({
           {permissionBlocked
             ? 'Microphone access is blocked. Open Settings to allow Veno to record voice notes.'
             : 'Microphone access is required to record voice notes.'}
+        </ThemedText>
+      ) : allowanceExhausted ? (
+        <ThemedText style={styles.message} themeColor="textSecondary">
+          You&apos;ve used today&apos;s free recording time. Upgrade to Pro for unlimited
+          recording, or come back after midnight.
         </ThemedText>
       ) : (
         <ThemedText style={styles.message} themeColor="textSecondary">
@@ -86,6 +111,8 @@ export function RecordingCard({
           ) : (
             <Button fullWidth label="Enable Microphone" onPress={onRequestPermission} />
           )
+        ) : allowanceExhausted && phase === 'idle' ? (
+          <Button fullWidth label="See Pro Plans" onPress={onSeePlans ?? onStart} />
         ) : phase === 'idle' ? (
           <Button fullWidth label="Start Recording" onPress={onStart} />
         ) : phase === 'recording' ? (
@@ -120,6 +147,10 @@ const styles = StyleSheet.create({
   },
   message: {
     textAlign: 'center',
+  },
+  allowance: {
+    textAlign: 'center',
+    marginTop: -Spacing.sm,
   },
   error: {
     textAlign: 'center',

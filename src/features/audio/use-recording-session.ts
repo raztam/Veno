@@ -17,10 +17,20 @@ import { normalizeMetering, RECORDING_OPTIONS } from './recording-options';
 
 export type RecordingPhase = 'idle' | 'recording' | 'paused' | 'saving';
 
-type StopResult = {
+export type StopResult = {
   noteId: string;
   audioUri: string;
   durationMs: number;
+};
+
+export type StartRecordingOptions = {
+  /**
+   * Hard session cap in ms (e.g. remaining daily allowance). When reached the
+   * recorder auto-stops, saves the clip, and fires `onLimitReached`.
+   * Omit or pass `Infinity` for unlimited.
+   */
+  maxDurationMs?: number;
+  onLimitReached?: (result: StopResult | null) => void;
 };
 
 const IDLE_RECORDER_STATE: RecorderState = {
@@ -63,6 +73,10 @@ export function useRecordingSession() {
   const recorder = useAudioRecorder(RECORDING_OPTIONS);
   const noteIdRef = useRef<string | null>(null);
   const phaseRef = useRef<RecordingPhase>('idle');
+  const maxDurationMsRef = useRef<number | null>(null);
+  const onLimitReachedRef = useRef<StartRecordingOptions['onLimitReached']>(undefined);
+  const limitTriggeredRef = useRef(false);
+  const stopAndSaveRef = useRef<() => Promise<StopResult | null>>(async () => null);
 
   const [phase, setPhase] = useState<RecordingPhase>('idle');
   const [permissionDenied, setPermissionDenied] = useState(false);
@@ -102,6 +116,21 @@ export function useRecordingSession() {
           return next.slice(-80);
         });
       }
+
+      // Live daily-allowance enforcement: auto-stop at the cap so the user
+      // can never record past their limit and be rejected after the fact.
+      const maxDurationMs = maxDurationMsRef.current;
+      if (
+        maxDurationMs !== null &&
+        phaseRef.current === 'recording' &&
+        status.durationMillis >= maxDurationMs &&
+        !limitTriggeredRef.current
+      ) {
+        limitTriggeredRef.current = true;
+        void stopAndSaveRef.current().then((result) => {
+          onLimitReachedRef.current?.(result);
+        });
+      }
     };
 
     update();
@@ -127,13 +156,19 @@ export function useRecordingSession() {
     openAppSettings();
   }, []);
 
-  const start = useCallback(async () => {
+  const start = useCallback(async (options?: StartRecordingOptions) => {
     setError(null);
 
     const granted = await ensurePermissions();
     if (!granted) {
       return;
     }
+
+    const maxDurationMs = options?.maxDurationMs;
+    maxDurationMsRef.current =
+      maxDurationMs !== undefined && Number.isFinite(maxDurationMs) ? maxDurationMs : null;
+    onLimitReachedRef.current = options?.onLimitReached;
+    limitTriggeredRef.current = false;
 
     try {
       noteIdRef.current = createNoteId();
@@ -179,6 +214,9 @@ export function useRecordingSession() {
     await safeStop(recorder);
 
     noteIdRef.current = null;
+    maxDurationMsRef.current = null;
+    onLimitReachedRef.current = undefined;
+    limitTriggeredRef.current = false;
     setMeteringSamples([]);
     setDurationMillis(0);
     setPhase('idle');
@@ -187,10 +225,11 @@ export function useRecordingSession() {
 
   const stopAndSave = useCallback(async (): Promise<StopResult | null> => {
     const noteId = noteIdRef.current;
-    if (!noteId) {
+    if (!noteId || phaseRef.current === 'saving') {
       return null;
     }
 
+    phaseRef.current = 'saving';
     setPhase('saving');
     setError(null);
 
@@ -212,6 +251,7 @@ export function useRecordingSession() {
 
       const audioUri = await persistRecording(tempUri, noteId);
       noteIdRef.current = null;
+      maxDurationMsRef.current = null;
       setMeteringSamples([]);
       setDurationMillis(0);
       setPhase('idle');
@@ -227,6 +267,8 @@ export function useRecordingSession() {
       return null;
     }
   }, [durationMillis, recorder]);
+
+  stopAndSaveRef.current = stopAndSave;
 
   return {
     phase,

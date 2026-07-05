@@ -7,6 +7,7 @@ import { useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { Colors } from '@/constants/theme';
+import { EntitlementsProvider } from '@/features/entitlements/entitlements-provider';
 import { SecurityProvider } from '@/features/security/security-provider';
 import { Sentry } from '@/features/telemetry/sentry';
 import { DatabaseProvider } from '@/providers/database-provider';
@@ -49,6 +50,7 @@ function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <QueryProvider>
         <DatabaseProvider>
+          <EntitlementsProvider>
           <ModelDownloadProvider>
             <TranscriptionProvider>
               <SummarizeProvider>
@@ -65,6 +67,7 @@ function RootLayout() {
               </SummarizeProvider>
             </TranscriptionProvider>
           </ModelDownloadProvider>
+          </EntitlementsProvider>
         </DatabaseProvider>
       </QueryProvider>
     </GestureHandlerRootView>

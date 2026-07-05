@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
+import { useRecordingAllowance } from '@/features/entitlements/use-usage';
 import { useSecurityStore } from '@/features/security/security-store';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -27,6 +28,7 @@ export function AppTabBar({ state, navigation }: TabBarProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { canStart } = useRecordingAllowance();
 
   const tabs = state.routes.filter((route) => route.name in TAB_CONFIG);
 
@@ -82,6 +84,13 @@ export function AppTabBar({ state, navigation }: TabBarProps) {
         accessibilityLabel="Record"
         accessibilityRole="button"
         onPress={() => {
+          // Daily allowance exhausted — go straight to the paywall instead of
+          // opening a recorder that can't start.
+          if (!canStart) {
+            router.push('/(app)/plan');
+            return;
+          }
+
           const { incrementVaultLockSuppression, decrementVaultLockSuppression } =
             useSecurityStore.getState();
           incrementVaultLockSuppression();

@@ -27,6 +27,16 @@ export default function AppLayout() {
             },
           }}
         />
+        <Stack.Screen
+          name="plan"
+          options={{
+            presentation: 'modal',
+            animation: 'slide_from_bottom',
+            contentStyle: {
+              backgroundColor: theme.background,
+            },
+          }}
+        />
         <Stack.Screen name="note/[id]" />
         <Stack.Screen name="dev-logs" />
       </Stack>

@@ -33,6 +33,14 @@ export const tasks = sqliteTable('tasks', {
   sortOrder: integer('sort_order').notNull(),
 });
 
+export const dailyUsage = sqliteTable('daily_usage', {
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => 'singleton'),
+  usageDate: text('usage_date').notNull(),
+  recordedMs: integer('recorded_ms').default(0).notNull(),
+});
+
 export const notesRelations = relations(notes, ({ many }) => ({
   tasks: many(tasks),
 }));
@@ -48,3 +56,4 @@ export type Note = typeof notes.$inferSelect;
 export type NewNote = typeof notes.$inferInsert;
 export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
+export type DailyUsage = typeof dailyUsage.$inferSelect;

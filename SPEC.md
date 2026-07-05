@@ -13,13 +13,14 @@ A premium, local-first AI voice-notes app. Records audio, transcribes it **on-de
 ### Core flows
 
 - **Biometric Unlock:** Launching the app triggers an immediate Face ID, Touch ID, or Device PIN/Pattern verification check via `expo-local-authentication`.
-- **Record:** Tap record → speak → tap stop. Audio is captured natively via `expo-audio`.
+- **Record:** Tap record → speak → tap stop (or auto-stop when the daily allowance is reached). Audio is captured natively via `expo-audio`. Free-tier users see remaining recording time and are **stopped automatically** before exceeding their daily cap — never allowed to finish a clip and then be told it was too long.
 - **Transcribe:** App runs [whisper.rn](https://www.npmjs.com/package/whisper.rn) locally against the saved audio file. Language is auto-detected (`language: 'auto'`) with support for all Whisper multilingual model languages; the detected ISO code is persisted on the note.
 - **Analyze:** App runs a local LLM via **ExecuTorch** (`react-native-executorch`) to produce a title, a summary (as many bullet points as the model deems useful), a tasks checklist, and contextual tags. The model is prompted for strict JSON; output is parsed and validated with Zod before persisting.
 - **Save:** Note data is saved locally to SQLite via Drizzle ORM and listed on the home screen.
 - **Cloud backup (Pro):** After each note change (debounced) or on demand, the app packages the local vault — SQLite snapshot + audio files — encrypts it, and uploads it to **iCloud** (iOS) or **Google Drive app data** (Android). The backup namespace is keyed by the stable **RevenueCat App User ID**, which is restored automatically when the user reinstalls from the store on the same Apple ID / Google account.
 - **Restore:** On first launch after reinstall, if RevenueCat resolves the same App User ID and a cloud backup exists, the app prompts the user to restore their vault before showing an empty notes list.
-- **Premium Gating:** **Free tier:** 3 minutes/day, 1 summary/day. **Pro (RevenueCat):** unlimited minutes, smart summaries, cloud backup & restore, export to Markdown / share sheet.
+- **Premium Gating:** **Free tier:** 5 minutes of recording/day, unlimited smart analysis (transcription + summary + tasks). **Pro (RevenueCat):** unlimited recording, cloud backup & restore, export to Markdown / share sheet. Daily limits are defined in a single modular config module so values can be tuned without touching gating logic.
+- **Plan screen:** Dedicated screen showing Free vs Pro comparison, live pricing from RevenueCat offerings, and a primary CTA that launches the **native App Store / Play Store purchase sheet** (via RevenueCat) — no custom checkout or web payment.
 - **Telemetry:** Errors and slow transcriptions/summarizations are reported to Sentry with anonymized session contexts.
 
 ### Out of scope (intentionally)
@@ -72,20 +73,22 @@ src/
       index.tsx              # Notes list
       record.tsx             # Record screen (modal-style)
       settings.tsx           # Reset vault, developer tools, pro settings
+      plan.tsx               # Free vs Pro comparison, pricing, upgrade CTA → native store
       note/[id].tsx          # Note detail screen
     _layout.tsx              # Providers, Sentry Init, React Query, initExecutorch
   components/
     ui/                      # buttons, cards, sheets
     record/                  # waveform, mic button, timer
     notes/                   # NoteCard, SummaryView, TaskList
-    paywall/                 # PaywallSheet wrapper
+    paywall/                 # PaywallSheet wrapper (inline limit-hit prompts)
+    plan/                    # PlanScreen, tier comparison cards, pricing rows
   features/
     security/                # local authentication state and hooks
     audio/                   # recorder service
     transcription/           # whisper.rn context init, transcribe hook, model management
     summarize/               # ExecuTorch LLM provider, summarize hook, Zod schemas, JSON parsing
     notes/                   # db schema definitions, local queries
-    entitlements/            # RevenueCat hooks and local limits counters
+    entitlements/            # RevenueCat hooks, limits config, usage counters, gating helpers
     backup/                  # cloud backup/restore adapters, encryption, sync scheduler
     telemetry/               # sentry init + tracing configurations
   db/
@@ -94,6 +97,7 @@ src/
     migrations/              # locally packed migration files
   constants/
     theme.ts                 # core styling tokens
+    entitlements.ts          # tier limits (single source of truth — tune without refactoring gating)
   assets/
     models/                  # optional bundled Whisper (.bin) and LLM (.pte) model binaries
 ```
@@ -181,6 +185,7 @@ Each stage represents a standalone shippable, executable target unit.
 - Hook up permissions flows via `expo-audio`.
 - Design a modular recording card view presenting visual timelines, duration, pauses, and waveforms backed by device audio amplitude metering.
 - Write local `.m4a` files straight to `${FileSystem.documentDirectory}recordings/`. Insert database records with `status: 'recorded'`.
+- Recorder hook should accept `maxDurationMs` and support programmatic auto-stop (wired to entitlements in Stage 7).
 
 ### Stage 5 — On-device transcription with whisper.rn
 
@@ -311,8 +316,82 @@ const parsed = NoteSummarySchema.parse(JSON.parse(extractJson(llm.response)));
 
 - Setup sandbox products via RevenueCat (`pro_monthly`). Initialize Purchases with the platform's anonymous App User ID (`Purchases.getAppUserID()`) — RevenueCat persists this across reinstalls when the user restores purchases on the same App Store / Play Store account.
 - Expose `rcAppUserId` from `features/entitlements/` so downstream features (cloud backup in Stage 10) can namespace backups without a separate auth system.
-- Keep limit counters (3 record minutes per day, 1 smart analysis per day) stored inside the local database environment, executing resets at midnight local device time.
-- **Done when:** Subscribing flags entitlement metrics locally, expanding sandbox limits to unlimited access, and a stable `rcAppUserId` is available app-wide.
+
+**14-day free trial (store-managed — not app code)**
+
+The 2-week Pro trial is **not** a local timer in SQLite or `TIER_LIMITS`. It is an **introductory offer on the subscription product** configured in each store, then linked in RevenueCat:
+
+| Layer | Responsibility |
+| :---- | :------------- |
+| **App Store Connect** (iOS) | Set **14-day free trial** on `pro_monthly` under Subscription → Introductory Offers. |
+| **Google Play Console** (Android) | Set matching **14-day free trial** on the same subscription base plan. |
+| **RevenueCat** | Attach the store products to the `pro` entitlement / offering. RC reads trial metadata from the stores and grants the entitlement for the trial period — no custom trial duration in the RC dashboard. |
+| **App code** | **Display only + gating:** read `package.product.introPrice` / eligibility from offerings to show *"Start 14-day free trial, then {price}/mo"*; call `Purchases.purchasePackage()`; treat an active trial the same as paid Pro (`entitlements.pro.isActive` → unlimited recording, backup, etc.). **Do not** implement a parallel 14-day countdown in the app. |
+
+- Trial eligibility (one per Apple ID / Google account) is enforced by the **stores**, not by us.
+- If the user cancels during the trial, access continues until trial end; billing rules follow store policy.
+- **Restore purchases** must work for trial/subscription state after reinstall — RevenueCat + store receipts handle this.
+- The existing **free tier** (5 min/day, unlimited analysis) remains for users who never start a trial or subscription.
+
+**Modular tier limits (`src/constants/entitlements.ts`)**
+
+All free-tier caps live in one exported config object — gating code reads from it; changing limits is a one-line edit:
+
+```typescript
+export const TIER_LIMITS = {
+  free: {
+    recordMinutesPerDay: 5,       // total recording time allowed per calendar day
+    smartAnalysisPerDay: null,    // null = unlimited (transcription + summarize pipeline)
+  },
+  pro: {
+    recordMinutesPerDay: null,    // null = unlimited
+    smartAnalysisPerDay: null,
+  },
+} as const;
+```
+
+- `features/entitlements/` imports `TIER_LIMITS` and exposes helpers (`getEffectiveLimits`, `getRemainingRecordMs`, `canStartRecording`, `canAnalyze`) that resolve `null` to unlimited and branch on the active RevenueCat entitlement.
+- Only **recording time** is metered on the free tier; smart analysis (Whisper + ExecuTorch) is not capped — users can analyze every note they record within their daily allowance.
+
+**Usage counters & real-time recording enforcement (local DB)**
+
+- Persist a single daily-usage row (or key-value table) tracking `recordedMsToday` and `usageDate` (local `YYYY-MM-DD`).
+- Reset counters at midnight **local device time** when `usageDate` ≠ today.
+- Pro subscribers skip all limit checks.
+
+**Before recording starts**
+
+- `canStartRecording()` returns false when `recordedMsToday >= daily cap` — disable the record button and route to the Plan screen / paywall sheet instead of opening the recorder.
+- `getRemainingRecordMs()` = `daily cap − recordedMsToday` (or `Infinity` for Pro).
+
+**During an active recording (free tier)**
+
+- The record screen shows a **countdown of remaining daily allowance** (not just elapsed session time).
+- On each timer tick, compare `recordedMsToday + sessionElapsedMs` against the daily cap.
+- When remaining allowance reaches **0**, **auto-stop** the recorder immediately — save the valid clip (up to the cap), then show the paywall sheet. The user must never be able to record past the limit and only learn about it afterward.
+- If the user has e.g. 1 minute left today, cap the session at 1 minute even if they keep talking; do not accept a 6-minute take and reject it on stop.
+
+**After recording stops**
+
+- Add the session duration to `recordedMsToday` and persist. This is bookkeeping only — enforcement already happened live.
+
+**Record screen integration (Stage 4 + 7)**
+
+- `features/audio/` recorder hook accepts an optional `maxDurationMs` derived from `getRemainingRecordMs()` and wires auto-stop + `onLimitReached` callback to the paywall flow.
+
+**Plan screen (`(app)/plan.tsx`)**
+
+- Entry points: Settings ("Upgrade to Pro"), auto-stop + paywall when the daily recording cap is reached mid-session, record button disabled when the cap is already exhausted, and any "Pro" badge in the tab bar or note flows.
+- Layout: hero headline, **Free vs Pro** feature comparison table, and a pricing card fed by RevenueCat `Offerings` (localized price string, billing period, trial badge if configured).
+- Primary CTA — **"Subscribe"** / **"Start free trial"** — calls `Purchases.purchasePackage()` and surfaces the **native store payment sheet** (StoreKit on iOS, Google Play billing on Android). No web checkout, no custom card form.
+- Secondary actions: **"Restore purchases"** (`Purchases.restorePurchases()`), link back to Settings.
+- On successful purchase, dismiss the screen and refresh entitlement state app-wide.
+
+**Inline paywall (`components/paywall/PaywallSheet`)**
+
+- Lightweight bottom sheet shown when the user **hits the daily recording cap** — either because the recorder auto-stopped at 0 remaining, or because they tried to start with no allowance left. Explains the limit, shows time until midnight reset, and offers a shortcut to the Plan screen or direct purchase.
+
+- **Done when:** `TIER_LIMITS` drives all gating, free users get 5 min recording/day with unlimited smart analysis, recording is blocked or auto-stopped **before** exceeding the cap (never rejected after the fact), the Plan screen displays live store pricing and completes purchase via the native payment sheet, subscribing unlocks unlimited recording locally, and a stable `rcAppUserId` is available app-wide.
 
 ### Stage 8 — Observability with Sentry
 
