@@ -1,14 +1,20 @@
 const { getDefaultConfig } = require('expo/metro-config');
-const { withSentryConfig } = require('@sentry/react-native/metro');
+const { getSentryExpoConfig } = require('@sentry/react-native/metro');
 
 /** @type {import('expo/metro-config').MetroConfig} */
-const config = getDefaultConfig(__dirname);
+const config = getSentryExpoConfig(__dirname, {
+  getDefaultConfig: (projectRoot, options) => {
+    const expoConfig = getDefaultConfig(projectRoot, options);
 
-config.resolver.sourceExts.push('sql');
-config.resolver.assetExts.push('bin', 'mil', 'pte');
-config.resolver.extraNodeModules = {
-  ...config.resolver.extraNodeModules,
-  buffer: require.resolve('buffer'),
-};
+    expoConfig.resolver.sourceExts.push('sql');
+    expoConfig.resolver.assetExts.push('bin', 'mil', 'pte');
+    expoConfig.resolver.extraNodeModules = {
+      ...expoConfig.resolver.extraNodeModules,
+      buffer: require.resolve('buffer'),
+    };
 
-module.exports = withSentryConfig(config);
+    return expoConfig;
+  },
+});
+
+module.exports = config;
