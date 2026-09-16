@@ -4,6 +4,11 @@ import { useNotes } from '@/features/notes/use-notes';
 import { devLog } from '@/features/telemetry/dev-logger';
 import { isSummarizeModelDownloaded } from '@/features/summarize/summarize-model-storage';
 import { isSummarizeSupported } from '@/features/summarize/support';
+import {
+  isEarModelDownloaded,
+  isEarSupported,
+  prefetchEarModel,
+} from '@/features/transcription/ear-language';
 import { isWhisperModelDownloaded } from '@/features/transcription/model-storage';
 
 import {
@@ -19,6 +24,31 @@ function hasPendingSummarization(notes: ReturnType<typeof useNotes>['data']): bo
 
 export function ModelDownloadProvider({ children }: { children: React.ReactNode }) {
   const { data: notes } = useNotes();
+
+  useEffect(() => {
+    if (!isEarSupported()) {
+      return;
+    }
+
+    if (isEarModelDownloaded()) {
+      useModelDownloadStore.getState().setEarStatus('ready');
+      return;
+    }
+
+    useModelDownloadStore.getState().setEarStatus('downloading');
+    void prefetchEarModel()
+      .then(() => {
+        useModelDownloadStore.getState().setEarStatus('ready');
+      })
+      .catch((error) => {
+        useModelDownloadStore.getState().setEarStatus('error');
+        devLog.warn(
+          'model',
+          'Ear language model download failed; Whisper will auto-detect language',
+          error,
+        );
+      });
+  }, []);
 
   useEffect(() => {
     if (isWhisperModelDownloaded()) {

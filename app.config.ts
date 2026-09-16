@@ -50,12 +50,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         ios: {
           newArchEnabled: true,
-          deploymentTarget: '17.0',
+          deploymentTarget: '18.0',
         },
         android: {
           newArchEnabled: true,
           buildReactNativeFromSource: false,
-          extraProguardRules: '-keep class com.rnwhisper.** { *; }',
+          extraProguardRules:
+            '-keep class com.rnwhisper.** { *; }\n-keep class ai.desertant.** { *; }',
         },
       },
     ],
@@ -89,6 +90,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     '@sentry/react-native/expo',
     './plugins/with-model-download-service.js',
     './plugins/with-prebuilt-react-native.js',
+    './plugins/with-desert-ant-ear.js',
   ],
   experiments: {
     typedRoutes: true,

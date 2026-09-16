@@ -10,6 +10,7 @@ type ModelDownloadStore = {
   summarizeProgress: number;
   summarizeError: string | null;
   summarizeDownloadRequested: boolean;
+  earStatus: ModelDownloadStatus;
   setWhisperStatus: (status: ModelDownloadStatus) => void;
   setWhisperProgress: (progress: number) => void;
   setWhisperError: (error: string | null) => void;
@@ -19,6 +20,7 @@ type ModelDownloadStore = {
   setSummarizeError: (error: string | null) => void;
   setSummarizeDownloadRequested: (requested: boolean) => void;
   resetSummarize: () => void;
+  setEarStatus: (status: ModelDownloadStatus) => void;
 };
 
 export const useModelDownloadStore = create<ModelDownloadStore>((set) => ({
@@ -29,6 +31,7 @@ export const useModelDownloadStore = create<ModelDownloadStore>((set) => ({
   summarizeProgress: 0,
   summarizeError: null,
   summarizeDownloadRequested: false,
+  earStatus: 'idle',
   setWhisperStatus: (whisperStatus) => set({ whisperStatus }),
   setWhisperProgress: (whisperProgress) => set({ whisperProgress }),
   setWhisperError: (whisperError) => set({ whisperError }),
@@ -50,6 +53,7 @@ export const useModelDownloadStore = create<ModelDownloadStore>((set) => ({
       summarizeError: null,
       summarizeDownloadRequested: false,
     }),
+  setEarStatus: (earStatus) => set({ earStatus }),
 }));
 
 export function useSummarizeModelProgress(): {

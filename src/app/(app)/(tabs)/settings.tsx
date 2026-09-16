@@ -58,6 +58,7 @@ export default function SettingsScreen() {
   const whisperDownloadStatus = useModelDownloadStore((state) => state.whisperStatus);
   const whisperDownloadProgress = useModelDownloadStore((state) => state.whisperProgress);
   const whisperDownloadError = useModelDownloadStore((state) => state.whisperError);
+  const earStatus = useModelDownloadStore((state) => state.earStatus);
   const summarizeDownloadStatus = useModelDownloadStore((state) => state.summarizeStatus);
   const summarizeDownloadProgress = useModelDownloadStore((state) => state.summarizeProgress);
   const summarizeDownloadError = useModelDownloadStore((state) => state.summarizeError);
@@ -211,6 +212,11 @@ export default function SettingsScreen() {
           <Card style={styles.section}>
             <ThemedText type="subtitle">Transcription</ThemedText>
             <ThemedText themeColor="textSecondary">{whisperStatusLabel}</ThemedText>
+            {earStatus === 'ready' ? (
+              <ThemedText themeColor="textSecondary" type="small">
+                Spoken-language detector ready.
+              </ThemedText>
+            ) : null}
             {showWhisperDownloadButton ? (
               <View style={styles.actions}>
                 <Button

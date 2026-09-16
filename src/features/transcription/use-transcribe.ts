@@ -6,10 +6,12 @@ import { devLog } from '@/features/telemetry/dev-logger';
 import {
   captureTranscriptionError,
   setTranscriptionSpanLanguage,
+  setTranscriptionSpanRouting,
   withTranscriptionSpan,
 } from '@/features/telemetry/transcription-tracing';
 
 import { prepareWhisperAudio } from './audio-converter';
+import { detectSpokenLanguage, isReliableEarLanguage } from './ear-language';
 import { runExclusiveTranscription } from './transcription-queue';
 import { useTranscriptionStore } from './transcription-store';
 import { getWhisperContext, isWhisperSupported } from './whisper-service';
@@ -31,6 +33,42 @@ function getErrorMessage(error: unknown): string {
   }
 
   return 'Transcription failed unexpectedly.';
+}
+
+function isLanguageError(error: unknown): boolean {
+  const message = getErrorMessage(error).toLowerCase();
+  return message.includes('language') || message.includes('locale');
+}
+
+async function transcribeWithLanguage(
+  context: Awaited<ReturnType<typeof getWhisperContext>>,
+  wavUri: string,
+  language: string,
+  onProgress: (progress: number) => void,
+): Promise<{ result: string; language: string }> {
+  try {
+    const { promise } = context.transcribe(wavUri, {
+      language,
+      maxThreads: 4,
+      onProgress,
+    });
+    return await promise;
+  } catch (error) {
+    if (language === 'auto' || !isLanguageError(error)) {
+      throw error;
+    }
+
+    devLog.warn('transcription', 'Whisper rejected the Ear language hint; retrying with auto', {
+      language,
+      error: getErrorMessage(error),
+    });
+    const { promise } = context.transcribe(wavUri, {
+      language: 'auto',
+      maxThreads: 4,
+      onProgress,
+    });
+    return await promise;
+  }
 }
 
 async function transcribeNoteInternal(
@@ -76,20 +114,29 @@ async function transcribeNoteInternal(
         const { wavUri, cleanup } = await prepareWhisperAudio(note.audioUri, note.id);
         cleanupConvertedAudio = cleanup;
 
+        const detection = await detectSpokenLanguage(wavUri);
+        const whisperLanguage = isReliableEarLanguage(detection) ? detection.language : 'auto';
+        setTranscriptionSpanRouting(detection, whisperLanguage);
+
         const context = await getWhisperContext();
-        const { promise } = context.transcribe(wavUri, {
-          language: 'auto',
-          maxThreads: 4,
-          onProgress: (progress: number) => {
+        const { result, language } = await transcribeWithLanguage(
+          context,
+          wavUri,
+          whisperLanguage,
+          (progress: number) => {
             setNoteProgress(note.id, progress);
           },
-        });
+        );
 
-        const { result, language } = await promise;
         const transcript = result.trim();
-        setTranscriptionSpanLanguage(language);
+        const detectedLanguage = isReliableEarLanguage(detection)
+          ? detection.language
+          : language || null;
+        setTranscriptionSpanLanguage(detectedLanguage);
         devLog.info('transcription', `Transcription complete for note ${note.id}`, {
-          language,
+          language: detectedLanguage,
+          whisperLanguage,
+          earReliable: detection?.isReliable ?? false,
           transcriptLength: transcript.length,
         });
 
@@ -97,7 +144,7 @@ async function transcribeNoteInternal(
           id: note.id,
           updates: {
             transcript,
-            detectedLanguage: language || null,
+            detectedLanguage,
             status: 'summarizing',
           },
         });

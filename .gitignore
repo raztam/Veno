@@ -24,6 +24,15 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+*.apk
+*.aab
+**/.gradle/
+**/local.properties
+
+# Local Expo module compile output (root /android and /ios are ignored separately)
+modules/**/android/build/
+modules/**/android/.cxx/
+modules/**/ios/build/
 
 # Metro
 .metro-health-check*

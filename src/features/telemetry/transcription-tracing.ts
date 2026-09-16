@@ -1,4 +1,5 @@
 import { WHISPER_MODEL_FILENAME } from '@/features/transcription/constants';
+import type { EarDetection } from '@/features/transcription/ear-language';
 
 import { captureTelemetryError, isSentryEnabled, Sentry } from './sentry';
 
@@ -35,6 +36,25 @@ export function setTranscriptionSpanLanguage(language: string | null | undefined
   }
 
   Sentry.getActiveSpan()?.setAttribute('detected_language', language);
+}
+
+export function setTranscriptionSpanRouting(
+  detection: EarDetection | null,
+  whisperLanguage: string,
+): void {
+  if (!isSentryEnabled()) {
+    return;
+  }
+
+  const span = Sentry.getActiveSpan();
+  if (!span) {
+    return;
+  }
+
+  span.setAttribute('ear.language', detection?.language ?? '');
+  span.setAttribute('ear.confidence', detection?.confidence ?? 0);
+  span.setAttribute('ear.isReliable', detection?.isReliable ?? false);
+  span.setAttribute('whisper.language', whisperLanguage);
 }
 
 export function captureTranscriptionError(error: unknown, noteId: string): void {
