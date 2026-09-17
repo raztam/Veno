@@ -134,6 +134,8 @@ src/
 | `npm run lint` | Run ESLint |
 | `npm run db:generate` | Generate Drizzle migrations |
 | `npm run build:android:apk` | Build a release APK |
+| `npm run android:device` | Build a release APK, install it on the connected phone, and launch Veno |
+| `npm run install:android` | Install the already-built APK on the connected phone |
 | `npm run build:ios` | Build for iOS simulator |
 
 ## Construction stages

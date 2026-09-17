@@ -244,9 +244,13 @@ function ensureAndroidSdkConfigured(projectRoot = path.join(__dirname, '..')) {
   return sdkDir;
 }
 
-if (require.main === module) {
-  const projectRoot = path.join(__dirname, '..');
+function buildReleaseApk(projectRoot = path.join(__dirname, '..')) {
   ensureAndroidSdkConfigured(projectRoot);
+
+  if (process.env.SENTRY_UPLOAD !== 'true') {
+    process.env.SENTRY_DISABLE_AUTO_UPLOAD = 'true';
+    console.log('Skipping Sentry source map upload for local APK (set SENTRY_UPLOAD=true to enable).');
+  }
 
   run('./gradlew', ['assembleRelease', '-PreactNativeArchitectures=arm64-v8a'], {
     cwd: path.join(projectRoot, 'android'),
@@ -262,9 +266,15 @@ if (require.main === module) {
   fs.mkdirSync(path.dirname(apkTarget), { recursive: true });
   fs.copyFileSync(apkSource, apkTarget);
   console.log(`Copied release APK to ${apkTarget}`);
+  return apkTarget;
+}
+
+if (require.main === module) {
+  buildReleaseApk();
 }
 
 module.exports = {
+  buildReleaseApk,
   ensureAndroidSdkConfigured,
   resolveAndroidSdk,
 };
