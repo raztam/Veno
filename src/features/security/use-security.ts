@@ -8,20 +8,14 @@ export function useSecurity() {
   const isAuthenticating = useSecurityStore((state) => state.isAuthenticating);
   const lock = useSecurityStore((state) => state.lock);
   const unlock = useSecurityStore((state) => state.unlock);
-  const setAuthenticating = useSecurityStore((state) => state.setAuthenticating);
 
   const authenticate = useCallback(async () => {
-    setAuthenticating(true);
-    try {
-      const result = await authenticateUser();
-      if (result.success) {
-        unlock();
-      }
-      return result;
-    } finally {
-      setAuthenticating(false);
+    const result = await authenticateUser();
+    if (result.success) {
+      unlock();
     }
-  }, [setAuthenticating, unlock]);
+    return result;
+  }, [unlock]);
 
   return {
     isUnlocked,

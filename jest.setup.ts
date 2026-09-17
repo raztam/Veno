@@ -3,7 +3,7 @@ jest.mock('whisper.rn', () => require('whisper.rn/jest-mock'));
 jest.mock('react-native-executorch', () => ({
   initExecutorch: jest.fn(),
   isAvailable: false,
-  models: { llm: { lfm2_5_1_2b_instruct: jest.fn(() => ({})) } },
+  models: { llm: { qwen2_5_3b: jest.fn(() => ({})) } },
   useLLM: jest.fn(() => ({
     isReady: false,
     isGenerating: false,

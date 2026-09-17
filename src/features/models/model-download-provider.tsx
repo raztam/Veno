@@ -2,7 +2,10 @@ import { useEffect } from 'react';
 
 import { useNotes } from '@/features/notes/use-notes';
 import { devLog } from '@/features/telemetry/dev-logger';
-import { isSummarizeModelDownloaded } from '@/features/summarize/summarize-model-storage';
+import {
+  isSummarizeModelDownloaded,
+  removeStaleSummarizeModelFiles,
+} from '@/features/summarize/summarize-model-storage';
 import { isSummarizeSupported } from '@/features/summarize/support';
 import {
   isEarModelDownloaded,
@@ -66,6 +69,8 @@ export function ModelDownloadProvider({ children }: { children: React.ReactNode 
     if (!isSummarizeSupported()) {
       return;
     }
+
+    removeStaleSummarizeModelFiles();
 
     const {
       setSummarizeStatus,

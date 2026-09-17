@@ -27,7 +27,7 @@ export const useSecurityStore = create<SecurityStore>((set) => ({
         return state;
       }
 
-      return { ...state, isUnlocked: false, isAuthenticating: false };
+      return { ...state, isUnlocked: false };
     }),
   unlock: () => set({ isUnlocked: true, isAuthenticating: false }),
   setAuthenticating: (value) => set({ isAuthenticating: value }),

@@ -7,7 +7,10 @@ import {
 } from '@/features/summarize/constants';
 import { ensureExecutorchInitialized } from '@/features/summarize/executorch-init';
 import { getSummarizeLlmModel } from '@/features/summarize/summarize-model-config';
-import { isSummarizeModelDownloaded } from '@/features/summarize/summarize-model-storage';
+import {
+  isSummarizeModelDownloaded,
+  removeStaleSummarizeModelFiles,
+} from '@/features/summarize/summarize-model-storage';
 import { devLog } from '@/features/telemetry/dev-logger';
 
 import { runInBackgroundTask, updateBackgroundTaskProgress } from './background-task';
@@ -46,6 +49,7 @@ async function performSummarizeModelDownload(
   ensureExecutorchInitialized();
 
   const model = getSummarizeLlmModel();
+  removeStaleSummarizeModelFiles();
 
   if (isSummarizeModelDownloaded()) {
     useModelDownloadStore.getState().setSummarizeStatus('ready');
@@ -124,6 +128,8 @@ export async function downloadSummarizeModelInBackground(
   if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
     throw new Error('On-device summarization is only available on iOS and Android.');
   }
+
+  removeStaleSummarizeModelFiles();
 
   if (isSummarizeModelDownloaded()) {
     useModelDownloadStore.getState().setSummarizeStatus('ready');
