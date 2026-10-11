@@ -10,7 +10,7 @@ For the full product spec, data model, and staged build plan, see [SPEC.md](./SP
 
 - **Biometric unlock** — Face ID, Touch ID, or device PIN/pattern via `expo-local-authentication`
 - **Record** — Native audio capture with `expo-audio`
-- **Transcribe** — On-device speech-to-text via [`whisper.rn`](https://www.npmjs.com/package/whisper.rn) with automatic language detection
+- **Transcribe** — On-device speech-to-text via [`whisper.rn`](https://www.npmjs.com/package/whisper.rn). [Desert Ant Ear](https://github.com/Desert-Ant-Labs/desert-ant-core) detects spoken language first so Whisper transcribes with the correct language code.
 - **Analyze** — OpenAI via the Vercel AI SDK (`gpt-4o-mini`), proxied through `/api/summarize`
 - **Local storage** — Notes, audio, and tasks live in SQLite (Drizzle ORM) and the app sandbox
 - **Cloud backup (Pro)** — Encrypted vault snapshots to iCloud or Google Drive, restored via RevenueCat App User ID after reinstall
@@ -30,7 +30,7 @@ Real-time multi-device sync, custom user accounts, collaboration, and a web clie
 | Local security | `expo-local-authentication` |
 | Audio | `expo-audio` |
 | Server proxy | Expo Router API routes + EAS Hosting |
-| Transcription | [`whisper.rn`](https://www.npmjs.com/package/whisper.rn) (on-device Whisper, multilingual + auto language detection) |
+| Transcription | [`whisper.rn`](https://www.npmjs.com/package/whisper.rn) (on-device Whisper) + [Desert Ant Ear](https://github.com/Desert-Ant-Labs/desert-ant-core) (spoken language ID) |
 | LLM | OpenAI via Vercel AI SDK → `/api/summarize` |
 | Local DB | `expo-sqlite` + Drizzle ORM |
 | Object storage | `expo-file-system` |
@@ -161,3 +161,8 @@ Development follows a staged plan documented in [SPEC.md](./SPEC.md):
 - [Drizzle ORM](https://orm.drizzle.team/)
 - [Vercel AI SDK](https://sdk.vercel.ai/docs)
 - [whisper.rn](https://www.npmjs.com/package/whisper.rn) (on-device Whisper for React Native)
+- [Desert Ant Ear](https://github.com/Desert-Ant-Labs/desert-ant-core) (on-device spoken language identification)
+
+## Third-party licenses
+
+Desert Ant Ear is source-available under the [Desert Ant Labs Source-Available License](https://license.desertant.com/1.0). It is free for most apps; a commercial license is required at scale.

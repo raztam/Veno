@@ -1,6 +1,8 @@
 import { Platform } from 'react-native';
 import BackgroundService from 'react-native-background-actions';
 
+import { useSecurityStore } from '@/features/security/security-store';
+
 export type BackgroundTaskConfig = {
   taskName: string;
   taskTitle: string;
@@ -17,6 +19,10 @@ export function updateBackgroundTaskProgress(
   progress: number,
 ): void {
   if (!isBackgroundTaskRunning()) {
+    return;
+  }
+
+  if (useSecurityStore.getState().isAuthenticating) {
     return;
   }
 

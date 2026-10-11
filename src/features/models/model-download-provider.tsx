@@ -2,8 +2,16 @@ import { useEffect } from 'react';
 
 import { useNotes } from '@/features/notes/use-notes';
 import { devLog } from '@/features/telemetry/dev-logger';
-import { isSummarizeModelDownloaded } from '@/features/summarize/summarize-model-storage';
+import {
+  isSummarizeModelDownloaded,
+  removeStaleSummarizeModelFiles,
+} from '@/features/summarize/summarize-model-storage';
 import { isSummarizeSupported } from '@/features/summarize/support';
+import {
+  isEarModelDownloaded,
+  isEarSupported,
+  prefetchEarModel,
+} from '@/features/transcription/ear-language';
 import { isWhisperModelDownloaded } from '@/features/transcription/model-storage';
 
 import {
@@ -21,6 +29,31 @@ export function ModelDownloadProvider({ children }: { children: React.ReactNode 
   const { data: notes } = useNotes();
 
   useEffect(() => {
+    if (!isEarSupported()) {
+      return;
+    }
+
+    if (isEarModelDownloaded()) {
+      useModelDownloadStore.getState().setEarStatus('ready');
+      return;
+    }
+
+    useModelDownloadStore.getState().setEarStatus('downloading');
+    void prefetchEarModel()
+      .then(() => {
+        useModelDownloadStore.getState().setEarStatus('ready');
+      })
+      .catch((error) => {
+        useModelDownloadStore.getState().setEarStatus('error');
+        devLog.warn(
+          'model',
+          'Ear language model download failed; Whisper will auto-detect language',
+          error,
+        );
+      });
+  }, []);
+
+  useEffect(() => {
     if (isWhisperModelDownloaded()) {
       useModelDownloadStore.getState().setWhisperStatus('ready');
       useModelDownloadStore.getState().setWhisperProgress(100);
@@ -36,6 +69,8 @@ export function ModelDownloadProvider({ children }: { children: React.ReactNode 
     if (!isSummarizeSupported()) {
       return;
     }
+
+    removeStaleSummarizeModelFiles();
 
     const {
       setSummarizeStatus,

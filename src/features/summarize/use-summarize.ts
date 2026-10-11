@@ -7,7 +7,13 @@ import { notesKeys } from '@/features/notes/query-keys';
 import { useUpdateNote } from '@/features/notes/use-notes';
 import { devLog } from '@/features/telemetry/dev-logger';
 
-import { JSON_REPAIR_REMINDER, STRICT_JSON_RETRY_REMINDER, SYSTEM_PROMPT } from './constants';
+import {
+  buildJsonRepairReminder,
+  buildStrictJsonRetryReminder,
+  buildSystemPrompt,
+  buildUserPrompt,
+  getOutputLanguageLabel,
+} from './constants';
 import { parseSummaryResponse } from './parse-summary-response';
 import { formatSummaryMarkdown } from './format-summary';
 import type { NoteSummary } from './schema';
@@ -35,14 +41,6 @@ function getErrorMessage(error: unknown): string {
   return 'Summarization failed unexpectedly.';
 }
 
-function buildUserPrompt(transcript: string, detectedLanguage: string | null): string {
-  return `Analyze the following transcript (detected language: ${detectedLanguage ?? 'unknown'}).
-Generate a clear title, a concise multi-bullet summary, actionable checklist items, and helpful tags.
-
-Transcript:
-${transcript}`;
-}
-
 function parseSummary(raw: string): NoteSummary {
   return parseSummaryResponse(raw);
 }
@@ -53,18 +51,19 @@ async function generateSummary(
   detectedLanguage: string | null,
   options: { strictJson?: boolean; repairRaw?: string } = {},
 ): Promise<NoteSummary> {
+  const languageLabel = getOutputLanguageLabel(detectedLanguage);
   const messages: SummarizeMessage[] = [
-    { role: 'system', content: SYSTEM_PROMPT },
-    { role: 'user', content: buildUserPrompt(transcript, detectedLanguage) },
+    { role: 'system', content: buildSystemPrompt(languageLabel) },
+    { role: 'user', content: buildUserPrompt(transcript, languageLabel) },
   ];
 
   if (options.repairRaw) {
     messages.push({
       role: 'user',
-      content: `${JSON_REPAIR_REMINDER}${options.repairRaw.slice(0, 1200)}`,
+      content: `${buildJsonRepairReminder(languageLabel)}${options.repairRaw.slice(0, 1200)}`,
     });
   } else if (options.strictJson) {
-    messages.push({ role: 'user', content: STRICT_JSON_RETRY_REMINDER });
+    messages.push({ role: 'user', content: buildStrictJsonRetryReminder(languageLabel) });
   }
 
   const response = await llm.generate(messages);
@@ -121,9 +120,10 @@ async function summarizeNoteInternal(
         let rawResponse = '';
 
         try {
+          const languageLabel = getOutputLanguageLabel(note.detectedLanguage);
           rawResponse = await llm.generate([
-            { role: 'system', content: SYSTEM_PROMPT },
-            { role: 'user', content: buildUserPrompt(transcript, note.detectedLanguage) },
+            { role: 'system', content: buildSystemPrompt(languageLabel) },
+            { role: 'user', content: buildUserPrompt(transcript, languageLabel) },
           ]);
           summary = parseSummary(rawResponse);
         } catch (firstError) {

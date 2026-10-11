@@ -2,10 +2,13 @@ import * as Device from 'expo-device';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { Platform } from 'react-native';
 
+import { useSecurityStore } from '@/features/security/security-store';
+
 export type AuthFailureReason =
   | 'unavailable'
   | 'not_enrolled'
   | 'cancelled'
+  | 'interrupted'
   | 'failed'
   | 'unknown';
 
@@ -13,7 +16,42 @@ export type AuthResult =
   | { success: true }
   | { success: false; reason: AuthFailureReason };
 
+let authenticateInFlight: Promise<AuthResult> | null = null;
+
+export function isSilentAuthFailure(reason: AuthFailureReason): boolean {
+  return reason === 'interrupted';
+}
+
 export async function authenticateUser(options?: {
+  promptMessage?: string;
+  promptSubtitle?: string;
+}): Promise<AuthResult> {
+  if (authenticateInFlight) {
+    return authenticateInFlight;
+  }
+
+  authenticateInFlight = runAuthenticate(options).finally(() => {
+    authenticateInFlight = null;
+  });
+
+  return authenticateInFlight;
+}
+
+async function runAuthenticate(options?: {
+  promptMessage?: string;
+  promptSubtitle?: string;
+}): Promise<AuthResult> {
+  const { setAuthenticating } = useSecurityStore.getState();
+  setAuthenticating(true);
+
+  try {
+    return await promptForAuthentication(options);
+  } finally {
+    setAuthenticating(false);
+  }
+}
+
+async function promptForAuthentication(options?: {
   promptMessage?: string;
   promptSubtitle?: string;
 }): Promise<AuthResult> {
@@ -53,9 +91,10 @@ export async function authenticateUser(options?: {
 
   switch (result.error) {
     case 'user_cancel':
+      return { success: false, reason: 'cancelled' };
     case 'system_cancel':
     case 'app_cancel':
-      return { success: false, reason: 'cancelled' };
+      return { success: false, reason: 'interrupted' };
     case 'not_enrolled':
     case 'not_available':
     case 'passcode_not_set':

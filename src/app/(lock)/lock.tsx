@@ -1,15 +1,22 @@
 import { useRouter, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/ui/button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import type { AuthFailureReason } from '@/features/security/authenticate';
+import {
+  isSilentAuthFailure,
+  type AuthFailureReason,
+} from '@/features/security/authenticate';
 import { useSecurityStore } from '@/features/security/security-store';
 import { useSecurity } from '@/features/security/use-security';
+import {
+  POST_UNLOCK_AUTH_DELAY_MS,
+  waitForActiveApp,
+} from '@/features/security/wait-for-active-app';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -34,23 +41,65 @@ export default function LockScreen() {
   const { authenticate, isAuthenticating } = useSecurity();
   const vaultLockEnabled = useSecurityStore((state) => state.vaultLockEnabled);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isPreparingUnlock, setIsPreparingUnlock] = useState(false);
+  const unlockAttemptRef = useRef(0);
+  const unlockInFlightRef = useRef(false);
+  const waitingForActiveRef = useRef(false);
 
-  const attemptUnlock = useCallback(async () => {
-    if (vaultLockEnabled === false) {
-      router.replace('/(app)/(tabs)');
-      return;
-    }
+  const attemptUnlock = useCallback(
+    async (options?: { auto?: boolean; signal?: AbortSignal }) => {
+      if (vaultLockEnabled === false) {
+        router.replace('/(app)/(tabs)');
+        return;
+      }
 
-    setErrorMessage(null);
-    const result = await authenticate();
+      if (unlockInFlightRef.current || options?.signal?.aborted) {
+        return;
+      }
 
-    if (result.success) {
-      router.replace('/(app)/(tabs)');
-      return;
-    }
+      unlockInFlightRef.current = true;
+      const attemptId = ++unlockAttemptRef.current;
+      setIsPreparingUnlock(true);
+      setErrorMessage(null);
 
-    setErrorMessage(getFailureMessage(result.reason));
-  }, [authenticate, router, vaultLockEnabled]);
+      try {
+        waitingForActiveRef.current = true;
+        const ready = await waitForActiveApp(
+          options?.signal,
+          options?.auto ? POST_UNLOCK_AUTH_DELAY_MS : 0,
+        );
+        waitingForActiveRef.current = false;
+
+        if (!ready || attemptId !== unlockAttemptRef.current) {
+          return;
+        }
+
+        const result = await authenticate();
+
+        if (attemptId !== unlockAttemptRef.current) {
+          return;
+        }
+
+        if (result.success) {
+          router.replace('/(app)/(tabs)');
+          return;
+        }
+
+        if (isSilentAuthFailure(result.reason)) {
+          return;
+        }
+
+        setErrorMessage(getFailureMessage(result.reason));
+      } finally {
+        waitingForActiveRef.current = false;
+        if (attemptId === unlockAttemptRef.current) {
+          unlockInFlightRef.current = false;
+          setIsPreparingUnlock(false);
+        }
+      }
+    },
+    [authenticate, router, vaultLockEnabled],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -59,9 +108,25 @@ export default function LockScreen() {
         return;
       }
 
-      void attemptUnlock();
+      const controller = new AbortController();
+      void attemptUnlock({ auto: true, signal: controller.signal });
+
+      return () => {
+        controller.abort();
+
+        if (!waitingForActiveRef.current) {
+          return;
+        }
+
+        unlockAttemptRef.current += 1;
+        unlockInFlightRef.current = false;
+        waitingForActiveRef.current = false;
+        setIsPreparingUnlock(false);
+      };
     }, [attemptUnlock, router, vaultLockEnabled]),
   );
+
+  const isUnlocking = isPreparingUnlock || isAuthenticating;
 
   return (
     <ThemedView style={styles.container}>
@@ -99,9 +164,11 @@ export default function LockScreen() {
 
           <Button
             fullWidth
-            label={isAuthenticating ? 'Verifying…' : 'Unlock'}
-            loading={isAuthenticating}
-            onPress={attemptUnlock}
+            label={isUnlocking ? 'Verifying…' : 'Unlock'}
+            loading={isUnlocking}
+            onPress={() => {
+              void attemptUnlock();
+            }}
             size="lg"
             style={styles.button}
           />
