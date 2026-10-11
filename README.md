@@ -2,7 +2,7 @@
 
 **Speak it. We'll write it down, summarize it, and pull out your tasks.**
 
-Veno is a premium, local-first AI voice-notes app. Record audio on-device, transcribe it locally with Whisper, run an LLM pass for summary and task extraction, and keep everything in a biometrically locked local vault. Pro users can encrypt and back up their vault to iCloud (iOS) or Google Drive (Android), keyed by their RevenueCat App User ID, so notes survive an app reinstall from the store. Transcription never leaves the device. The only server-side code is a thin set of stateless Expo Router API routes that proxy AI provider calls so internal endpoints and secret keys never ship in the JS bundle.
+Veno is a premium, local-first AI voice-notes app. Record audio on-device, transcribe it locally with Whisper, run an on-device LLM pass for summary and task extraction via ExecuTorch, and keep everything in a biometrically locked local vault. Pro users can encrypt and back up their vault to iCloud (iOS) or Google Drive (Android), keyed by their RevenueCat App User ID, so notes survive an app reinstall from the store. Transcription and summarization never leave the device.
 
 For the full product spec, data model, and staged build plan, see [SPEC.md](./SPEC.md).
 
@@ -11,10 +11,10 @@ For the full product spec, data model, and staged build plan, see [SPEC.md](./SP
 - **Biometric unlock** — Face ID, Touch ID, or device PIN/pattern via `expo-local-authentication`
 - **Record** — Native audio capture with `expo-audio`
 - **Transcribe** — On-device speech-to-text via [`whisper.rn`](https://www.npmjs.com/package/whisper.rn). [Desert Ant Ear](https://github.com/Desert-Ant-Labs/desert-ant-core) detects spoken language first so Whisper transcribes with the correct language code.
-- **Analyze** — OpenAI via the Vercel AI SDK (`gpt-4o-mini`), proxied through `/api/summarize`
+- **Analyze** — On-device summary and task extraction with Qwen 2.5 3B via [ExecuTorch](https://docs.swmansion.com/react-native-executorch/) (`react-native-executorch`)
 - **Local storage** — Notes, audio, and tasks live in SQLite (Drizzle ORM) and the app sandbox
 - **Cloud backup (Pro)** — Encrypted vault snapshots to iCloud or Google Drive, restored via RevenueCat App User ID after reinstall
-- **Premium gating** — Free tier limits (3 min/day recording, 1 summary/day); Pro via RevenueCat
+- **Premium gating** — Free tier: 5 minutes of recording per day with unlimited on-device analysis; Pro via RevenueCat
 - **Observability** — Errors and slow transcriptions reported to Sentry
 
 ### Out of scope
@@ -29,9 +29,8 @@ Real-time multi-device sync, custom user accounts, collaboration, and a web clie
 | Language | TypeScript, React 19, React Native 0.85 |
 | Local security | `expo-local-authentication` |
 | Audio | `expo-audio` |
-| Server proxy | Expo Router API routes + EAS Hosting |
 | Transcription | [`whisper.rn`](https://www.npmjs.com/package/whisper.rn) (on-device Whisper) + [Desert Ant Ear](https://github.com/Desert-Ant-Labs/desert-ant-core) (spoken language ID) |
-| LLM | OpenAI via Vercel AI SDK → `/api/summarize` |
+| LLM | [ExecuTorch](https://docs.swmansion.com/react-native-executorch/) via `react-native-executorch` (on-device Qwen 2.5 3B) |
 | Local DB | `expo-sqlite` + Drizzle ORM |
 | Object storage | `expo-file-system` |
 | Paywall | RevenueCat (`react-native-purchases`) — App User ID anchors backup identity |
@@ -65,15 +64,9 @@ cp .env.example .env
 | :--- | :--- | :--- |
 | `EXPO_PUBLIC_REVENUECAT_IOS_KEY` / `_ANDROID_KEY` | RevenueCat | Client |
 | `EXPO_PUBLIC_SENTRY_DSN` | Sentry | Client |
-| `EXPO_PUBLIC_API_BASE_URL` | Client → API routes | Client (EAS Hosting URL) |
-| `EXPO_PUBLIC_APP_API_KEY` | Client → API routes | Client |
-| `API_GATEWAY_KEY` | Proxy authentication | Server only (must match `EXPO_PUBLIC_APP_API_KEY`) |
-| `OPENAI_API_KEY` | OpenAI | Server only (`/api/summarize`) |
 | `SENTRY_AUTH_TOKEN` | Source-map upload | Build-time only |
 
-**Public keys** (`EXPO_PUBLIC_*`) are inlined into the JS bundle at build time. **Private keys** (no prefix) are read only by Expo Router API routes via `process.env` at request time and never reach the device.
-
-API proxy traffic is protected by a static header check (`EXPO_PUBLIC_APP_API_KEY` vs `API_GATEWAY_KEY`) to prevent unauthorized requests from burning OpenAI compute.
+**Public keys** (`EXPO_PUBLIC_*`) are inlined into the JS bundle at build time. `SENTRY_AUTH_TOKEN` is used only at build time to upload source maps.
 
 ### Run
 
@@ -102,7 +95,7 @@ src/
   app/                       # Expo Router
     (lock)/                  # Biometric entry
     (app)/                   # Secure tabs (notes, record, settings, note detail)
-    api/                     # Server-only API routes
+    api/                     # Health check
   components/
     ui/                      # Button, Card, Sheet, etc.
     record/                  # Waveform, mic button, timer
@@ -112,7 +105,7 @@ src/
     audio/                   # Recording and playback
     notes/                   # DB queries and repository
     transcription/           # whisper.rn context init, transcribe hook, model management
-    summarize/               # Client wrapper for /api/summarize
+    summarize/               # ExecuTorch LLM provider, summarize hook, Zod schemas
     entitlements/            # RevenueCat and usage limits
     backup/                  # Cloud backup/restore, encryption, sync scheduler
     telemetry/               # Sentry configuration
@@ -157,7 +150,7 @@ Development follows a staged plan documented in [SPEC.md](./SPEC.md):
 - [Expo documentation](https://docs.expo.dev/) (SDK 56)
 - [Expo Router](https://docs.expo.dev/router/introduction/)
 - [Drizzle ORM](https://orm.drizzle.team/)
-- [Vercel AI SDK](https://sdk.vercel.ai/docs)
+- [ExecuTorch for React Native](https://docs.swmansion.com/react-native-executorch/)
 - [whisper.rn](https://www.npmjs.com/package/whisper.rn) (on-device Whisper for React Native)
 - [Desert Ant Ear](https://github.com/Desert-Ant-Labs/desert-ant-core) (on-device spoken language identification)
 
