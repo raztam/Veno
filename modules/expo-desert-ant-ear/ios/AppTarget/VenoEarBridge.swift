@@ -1,5 +1,5 @@
-import Ear
-import ExpoDesertAntEar
+internal import Ear
+internal import ExpoDesertAntEar
 import Foundation
 
 /// Linked into the app target (not the Expo pod) so Ear can be imported via SPM

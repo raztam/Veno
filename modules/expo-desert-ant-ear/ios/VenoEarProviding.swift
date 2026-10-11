@@ -19,5 +19,5 @@ public protocol VenoEarProviding: AnyObject {
 }
 
 public enum VenoEarProvider {
-  public static var current: VenoEarProviding?
+  nonisolated(unsafe) public static var current: VenoEarProviding?
 }
