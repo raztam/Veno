@@ -33,6 +33,28 @@ export function createTestNoteInput(): NewNote {
   };
 }
 
+export function createImportedNoteInput(
+  id: string,
+  audioUri: string,
+  durationMs: number,
+  title: string,
+): NewNote {
+  const now = Date.now();
+
+  return {
+    id,
+    title,
+    createdAt: now,
+    updatedAt: now,
+    durationMs,
+    audioUri,
+    transcript: '',
+    summary: null,
+    tags: null,
+    status: 'recorded',
+  };
+}
+
 export function createRecordedNoteInput(
   id: string,
   audioUri: string,
