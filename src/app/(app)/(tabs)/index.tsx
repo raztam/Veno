@@ -5,18 +5,28 @@ import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSw
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SwipeableNoteCard } from '@/components/notes/swipeable-note-card';
+import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import type { Note } from '@/db/schema';
+import { describeImportResult, useImportVoiceNotes } from '@/features/notes/import-voice-notes';
 import { useDeleteNote, useNotes } from '@/features/notes/use-notes';
 
 export default function NotesScreen() {
   const router = useRouter();
   const { data: notes, isLoading } = useNotes();
   const deleteNote = useDeleteNote();
+  const importVoiceNotes = useImportVoiceNotes();
   const openSwipeableRef = useRef<SwipeableMethods | null>(null);
+  const importMessage = importVoiceNotes.isError
+    ? importVoiceNotes.error instanceof Error
+      ? importVoiceNotes.error.message
+      : 'Could not import voice notes.'
+    : importVoiceNotes.data
+      ? describeImportResult(importVoiceNotes.data)
+      : null;
 
   const handleNotePress = (note: Note) => {
     router.push(`/(app)/note/${note.id}`);
@@ -36,9 +46,23 @@ export default function NotesScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView edges={['top']} style={styles.safeArea}>
-        <ThemedText style={styles.header} type="title">
-          Notes
-        </ThemedText>
+        <View style={styles.headerRow}>
+          <ThemedText style={styles.header} type="title">
+            Notes
+          </ThemedText>
+          <Button
+            label="Import"
+            loading={importVoiceNotes.isPending}
+            onPress={() => importVoiceNotes.mutate()}
+            size="sm"
+            variant="secondary"
+          />
+        </View>
+        {importMessage ? (
+          <ThemedText style={styles.importMessage} themeColor="textSecondary" type="small">
+            {importMessage}
+          </ThemedText>
+        ) : null}
 
         {isLoading ? (
           <View style={styles.loading}>
@@ -85,8 +109,18 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   header: {
-    paddingHorizontal: Spacing.lg,
+    flex: 1,
     paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.md,
+  },
+  importMessage: {
+    paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.sm,
   },
   loading: {
