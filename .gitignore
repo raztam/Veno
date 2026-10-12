@@ -59,4 +59,8 @@ example
 /ios
 /android
 
+# Local Expo module build output. Root /android is already ignored;
+# this covers modules/*/android/build from Gradle.
+modules/**/android/build/
+
 .agents/

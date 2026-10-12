@@ -69,6 +69,19 @@ async function safeStop(recorder: AudioRecorder): Promise<void> {
   }
 }
 
+/**
+ * iOS recorders start with recording disabled. `setAudioModeAsync` is what
+ * flips that flag, and playback sets it back to false. It has to be awaited
+ * immediately before `record()`, including after the app returns from a
+ * permission prompt.
+ */
+async function enableRecordingMode(): Promise<void> {
+  await setAudioModeAsync({
+    allowsRecording: true,
+    playsInSilentMode: true,
+  });
+}
+
 export function useRecordingSession() {
   const recorder = useAudioRecorder(RECORDING_OPTIONS);
   const noteIdRef = useRef<string | null>(null);
@@ -86,15 +99,6 @@ export function useRecordingSession() {
   const [meteringSamples, setMeteringSamples] = useState<number[]>([]);
 
   phaseRef.current = phase;
-
-  useEffect(() => {
-    void (async () => {
-      await setAudioModeAsync({
-        allowsRecording: true,
-        playsInSilentMode: true,
-      });
-    })();
-  }, []);
 
   useEffect(() => {
     const shouldMonitor = phase === 'recording' || phase === 'paused';
@@ -174,6 +178,7 @@ export function useRecordingSession() {
       noteIdRef.current = createNoteId();
       setMeteringSamples([]);
       setDurationMillis(0);
+      await enableRecordingMode();
       await recorder.prepareToRecordAsync(RECORDING_OPTIONS);
       recorder.record();
       setPhase('recording');
@@ -197,12 +202,13 @@ export function useRecordingSession() {
     }
   }, [recorder]);
 
-  const resume = useCallback(() => {
+  const resume = useCallback(async () => {
     if (phase !== 'paused') {
       return;
     }
 
     try {
+      await enableRecordingMode();
       recorder.record();
       setPhase('recording');
     } catch {
